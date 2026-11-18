@@ -12,12 +12,14 @@ import math
 import os
 import sys
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from types import ModuleType
+from typing import Any, Protocol
 
 MINUTES_PER_DAY = 24 * 60
 FEATURES_SRC_ENV = "FLIGHT_FEATURES_SRC"
+DEFAULT_FEATURES_SRC = Path(__file__).resolve().parent.parent / "ml" / "data_pipeline"
 CLASSES = [0, 1, 2]  # 정상, 지연, 결항 (데이터셋 v3 label)
 
 
@@ -66,8 +68,36 @@ class Prediction:
         }
 
 
+@dataclass(frozen=True)
+class DataLimit:
+    """피처를 만드는 BTS 집계표가 오래되어, last_date 이후 출발편은 아직 예측할 수 없다."""
+
+    last_date: date
+    data_until: str  # 집계표의 마지막 달, "YYYY-MM"
+
+    def _until_ko(self) -> str:
+        y, m = self.data_until.split("-")
+        return f"{y}년 {int(m)}월"
+
+    def note(self) -> str:
+        d = self.last_date
+        return f"운항 통계가 {self._until_ko()}까지 반영돼 있어 {d.year}년 {d.month}월 {d.day}일 출발편까지 예측할 수 있어요."
+
+    def error(self) -> str:
+        d = self.last_date
+        return (f"{d.year}년 {d.month}월 {d.day}일 이후 출발편은 아직 예측할 수 없어요. "
+                f"예측에 쓰는 운항 통계가 {self._until_ko()}까지예요.")
+
+
+class PredictionUnavailable(ValueError):
+    """지금 가진 데이터로는 이 요청을 계산할 수 없다. 사용자에게는 날짜 오류로 보인다."""
+
+
 class Predictor(Protocol):
     def predict(self, request: PredictionRequest) -> Prediction: ...
+
+    def data_limit(self, today: date, until: date) -> DataLimit | None:
+        """today 부터 until 사이에 예측할 수 없는 출발일이 있으면 그 경계. 없으면 None."""
 
 
 class DummyPredictor:
@@ -79,6 +109,9 @@ class DummyPredictor:
     """
 
     version = "dummy-0"
+
+    def data_limit(self, today: date, until: date) -> DataLimit | None:
+        return None
 
     def predict(self, request: PredictionRequest) -> Prediction:
         hour = request.dep_hour
@@ -131,16 +164,46 @@ class ModelArtifact:
                    rate, str(raw["version"]))
 
 
+# 예측 가능 기간을 알아낼 때 쓰는 아무 항공편. 데이터 팀의 기준월 판단은 노선과 무관하다
+PROBE_FLIGHT = {"Reporting_Airline": "AA", "Flight_Number_Reporting_Airline": "", "Origin": "ATL", "Dest": "BOS",
+                "CRSDepTime": "0900", "CRSArrTime": "1130"}
+
+
 class ModelPredictor:
-    def __init__(self, artifact: ModelArtifact, build_features: Callable[..., dict]):
+    def __init__(self, artifact: ModelArtifact, features: ModuleType):
         self._a = artifact
-        self._build_features = build_features
+        self._features = features
         self.version = artifact.version
+        self._limit_by_day: dict[date, DataLimit | None] = {}
+
+    def _build(self, flight: dict, as_of: date) -> dict:
+        try:
+            return self._features.build_service_features(flight, as_of_date=as_of.isoformat(),
+                                                         features=self._a.features)
+        except self._features.StaleAggregatesError as e:
+            raise PredictionUnavailable(str(e)) from e
+
+    def data_limit(self, today: date, until: date) -> DataLimit | None:
+        if today not in self._limit_by_day:
+            self._limit_by_day = {today: self._probe_limit(today, until)}
+        return self._limit_by_day[today]
+
+    def _probe_limit(self, today: date, until: date) -> DataLimit | None:
+        # 기준월 규칙은 달 단위라서, 달마다 한 편씩 계산해 보고 처음 막히는 달의 전날까지를 예측 가능 기간으로 본다.
+        # 규칙을 앱에 옮겨 적지 않으므로 데이터 팀 규칙이나 집계표가 바뀌어도 그대로 맞다
+        day = today
+        while day <= until:
+            try:
+                self._build({**PROBE_FLIGHT, "FlightDate": day.isoformat()}, today)
+            except PredictionUnavailable:
+                return DataLimit(day - timedelta(days=1), str(self._features.aggregate_range()[1]))
+            day = (day.replace(day=1) + timedelta(days=32)).replace(day=1)
+        return None
 
     def predict(self, request: PredictionRequest) -> Prediction:
         import pandas as pd
 
-        feats = self._build_features(request.to_service_flight(), as_of_date=request.as_of.isoformat())
+        feats = self._build(request.to_service_flight(), request.as_of)
         # 참조 데이터가 없는 피처(신규 노선, 기체 일정 미발견 등)는 학습셋처럼 결측으로 둔다
         X = pd.DataFrame([{f: feats.get(f, math.nan) for f in self._a.features}], columns=self._a.features)
         # 한 행을 그냥 category 로 바꾸면 어떤 값이든 코드 0이 된다. 학습 때 범주 목록으로 맞추고, 없는 값은 결측
@@ -153,9 +216,9 @@ class ModelPredictor:
         return Prediction(delay / total, cancel / total, self.version)
 
 
-def _import_service_features(src_dir: Path):
+def _import_service_features(src_dir: Path) -> ModuleType:
     if not (src_dir / "service_features.py").exists():
-        raise RuntimeError(f"{FEATURES_SRC_ENV}={src_dir} 에 service_features.py 가 없습니다.")
+        raise RuntimeError(f"{src_dir} 에 service_features.py 가 없습니다. {FEATURES_SRC_ENV} 로 경로를 지정하세요.")
     sys.path.insert(0, str(src_dir))
     return importlib.import_module("service_features")
 
@@ -167,12 +230,9 @@ def load_predictor(models_dir: Path, features_src: str | None = None) -> Predict
 
     import joblib
 
-    features_src = features_src or os.environ.get(FEATURES_SRC_ENV)
-    if not features_src:
-        raise RuntimeError(f"{model_path} 를 쓰려면 {FEATURES_SRC_ENV} 에 데이터 팀 src 폴더 경로를 지정하세요.")
-    module = _import_service_features(Path(features_src))
+    module = _import_service_features(Path(features_src or os.environ.get(FEATURES_SRC_ENV) or DEFAULT_FEATURES_SRC))
     artifact = ModelArtifact.parse(joblib.load(model_path))
     unknown = set(artifact.features) - set(module.service_feature_names())
     if unknown:
         raise RuntimeError(f"서비스에서 만들 수 없는 피처가 모델에 있습니다: {sorted(unknown)}")
-    return ModelPredictor(artifact, module.build_service_features)
+    return ModelPredictor(artifact, module)

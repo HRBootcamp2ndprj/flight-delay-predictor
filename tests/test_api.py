@@ -3,12 +3,16 @@ from datetime import date
 import pytest
 
 from app import create_app
-from app.predictor import DummyPredictor, Prediction
+from app.predictor import DataLimit, DummyPredictor, Prediction, PredictionUnavailable
 
 
 class FixedPredictor:
-    def __init__(self):
+    def __init__(self, limit=None):
         self.last_request = None
+        self.limit = limit
+
+    def data_limit(self, today, until):
+        return self.limit
 
     def predict(self, request):
         self.last_request = request
@@ -136,3 +140,36 @@ def test_sky_video_assets_served(client):
         res = client.get(path)
         assert res.status_code == 200, path
         res.close()
+
+
+def test_options_date_range_is_booking_window_without_data_limit(client):
+    dates = client.get("/api/options").get_json()["dates"]
+    assert dates == {"min": "2024-06-01", "max": "2025-06-01", "limit_note": None}
+
+
+@pytest.fixture
+def limited_client():
+    limit = DataLimit(last_date=date(2024, 9, 30), data_until="2023-12")
+    return create_app(FixedPredictor(limit), today=lambda: TODAY).test_client()
+
+
+def test_options_date_range_stops_at_data_limit_with_reason(limited_client):
+    dates = limited_client.get("/api/options").get_json()["dates"]
+    assert dates["max"] == "2024-09-30"
+    assert "2023년 12월" in dates["limit_note"] and "2024년 9월 30일" in dates["limit_note"]
+
+
+def test_date_past_data_limit_is_rejected_with_reason(limited_client):
+    assert limited_client.post("/api/predict", json={**VALID, "date": "2024-09-30"}).status_code == 200
+    res = limited_client.post("/api/predict", json={**VALID, "date": "2024-10-01"})
+    assert res.status_code == 400
+    assert "운항 통계가 2023년 12월까지" in res.get_json()["errors"]["date"]
+
+
+def test_prediction_unavailable_becomes_date_error(client, predictor):
+    def unavailable(request):
+        raise PredictionUnavailable("기준월 2026-08 이 집계표 범위 밖")
+    predictor.predict = unavailable
+    res = client.post("/api/predict", json=VALID)
+    assert res.status_code == 400
+    assert res.get_json() == {"errors": {"date": "이 날짜는 아직 예측할 수 없어요."}}

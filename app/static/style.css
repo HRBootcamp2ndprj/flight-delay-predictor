@@ -203,6 +203,8 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
 .primary:disabled { opacity: .65; cursor: progress; transform: none; }
 
 .error { color: var(--crit); font-size: .8rem; padding-left: 2px; }
+.hint { color: var(--text-muted); font-size: .78rem; line-height: 1.4; padding-left: 2px; }
+.hint:empty { display: none; }
 .error:empty { display: none; }
 .form-error { grid-column: 1 / -1; }
 

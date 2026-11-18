@@ -6,7 +6,6 @@ const RISK_THRESHOLDS = {
   delay: { medium: 0.2, high: 0.35 },
   cancel: { medium: 0.02, high: 0.05 },
 };
-const BOOKING_WINDOW_DAYS = 365; // 서버와 동일
 const RECENT_KEY = "recentQueries";
 const RECENT_MAX = 5;
 
@@ -427,9 +426,12 @@ async function init() {
   destCombo = combo("dest", OPTIONS.airports, "일치하는 공항이 없어요");
 
   const today = new Date();
-  form.elements.date.min = localISODate(today);
-  form.elements.date.max = localISODate(addDays(today, BOOKING_WINDOW_DAYS));
-  form.elements.date.value = localISODate(addDays(today, 14));
+  const { min, max, limit_note } = OPTIONS.dates;
+  form.elements.date.min = min;
+  form.elements.date.max = max;
+  const twoWeeks = localISODate(addDays(today, 14));
+  form.elements.date.value = twoWeeks <= max ? twoWeeks : max;
+  $("date-hint").textContent = limit_note ?? "";
   form.elements.dep_time.value = "09:00";
 
   renderRecent();

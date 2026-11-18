@@ -4,11 +4,13 @@ ADR-0001은 모델이 BTS 원본 8개 컬럼을 받고 전처리를 통째로 �
 
 ## 계약
 
-**피처 생성.** 서버는 `FLIGHT_FEATURES_SRC`가 가리키는 데이터 팀 `src/` 폴더의 `service_features`를 import한다.
+**피처 생성.** 서버는 `ml/data_pipeline/`(다른 경로는 `FLIGHT_FEATURES_SRC`)의 데이터 팀 `service_features`를 import한다.
 
 - `build_service_features(flight, as_of_date)`에 BTS 컬럼 이름으로 한 편을 넘긴다. `CRSDepTime`, `CRSArrTime`은 현지 시각 4자리 hhmm(`"0705"`), `as_of_date`는 요청을 받은 날이다.
 - 편명(`Flight_Number_Reporting_Airline`)은 빈 문자열로 넘긴다. 편명은 기체 일정 피처(`tail_*_hist`)에만 쓰이고 지금 모델은 그 피처를 쓰지 않는다.
 - 함수가 돌려주지 않은 피처는 결측(NaN)으로 둔다. 학습셋에서도 참조 데이터가 없으면 결측이다.
+- `features=`에 모델의 피처 목록을 넘겨, 모델이 쓰지 않는 단계(기체 일정 등)는 계산하지 않게 한다.
+- 함수가 `StaleAggregatesError`를 내면(집계표에 필요한 달이 없음) 서버는 그 날짜를 예측할 수 없다고 400으로 답한다. 예측 가능한 마지막 날은 달마다 한 편씩 함수를 불러 처음 실패하는 달로 알아낸다. 기준월 규칙을 서버에 옮겨 적지 않으므로, 데이터 팀 규칙이나 집계표가 바뀌어도 그대로 맞는다.
 
 **모델 파일.** `models/model.joblib`은 다음 키를 가진 dict다. 서버는 시작할 때 검증하고, 어기면 시작하지 않는다.
 

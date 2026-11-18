@@ -8,7 +8,7 @@ from pathlib import Path
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
-from .predictor import PredictionRequest, Predictor, load_predictor
+from .predictor import DataLimit, PredictionRequest, PredictionUnavailable, Predictor, load_predictor
 
 APP_DIR = Path(__file__).parent
 ROOT_DIR = APP_DIR.parent
@@ -28,7 +28,17 @@ def _load_options() -> dict:
     return {"airlines": airlines, "airports": airports}
 
 
-def _parse_request(payload: dict, options: dict, today: date) -> tuple[PredictionRequest | None, dict]:
+def _date_range(predictor: Predictor, today: date) -> tuple[date, DataLimit | None]:
+    """받을 수 있는 마지막 출발일과, 그 날을 앞당긴 데이터 한계(있으면)."""
+    window_end = today + timedelta(days=BOOKING_WINDOW_DAYS)
+    limit = predictor.data_limit(today, window_end)
+    if limit is None or limit.last_date >= window_end:
+        return window_end, None
+    return limit.last_date, limit
+
+
+def _parse_request(payload: dict, options: dict, today: date, last_date: date,
+                   limit: DataLimit | None) -> tuple[PredictionRequest | None, dict]:
     errors: dict[str, str] = {}
     airline_codes = {a["code"] for a in options["airlines"]}
     airport_codes = {a["code"] for a in options["airports"]}
@@ -54,8 +64,8 @@ def _parse_request(payload: dict, options: dict, today: date) -> tuple[Predictio
     if flight_date is not None:
         if flight_date < today:
             errors["date"] = "이미 지난 날짜는 예측할 수 없습니다."
-        elif flight_date > today + timedelta(days=BOOKING_WINDOW_DAYS):
-            errors["date"] = f"출발일은 오늘부터 {BOOKING_WINDOW_DAYS}일 이내여야 합니다."
+        elif flight_date > last_date:
+            errors["date"] = limit.error() if limit else f"출발일은 오늘부터 {BOOKING_WINDOW_DAYS}일 이내여야 합니다."
 
     dep = _parse_hhmm(payload.get("dep_time"))
     if dep is None:
@@ -86,6 +96,11 @@ def create_app(
     options = _load_options()
     app.config["PREDICTOR"] = predictor or load_predictor(ROOT_DIR / "models")
 
+    @app.errorhandler(PredictionUnavailable)
+    def unavailable(e):
+        app.logger.warning("예측할 수 없는 요청: %s", e)
+        return jsonify({"errors": {"date": "이 날짜는 아직 예측할 수 없어요."}}), 400
+
     @app.errorhandler(Exception)
     def unexpected_error(e):
         if isinstance(e, HTTPException):
@@ -99,13 +114,15 @@ def create_app(
 
     @app.get("/api/options")
     def get_options():
-        return jsonify(options)
+        last_date, limit = _date_range(app.config["PREDICTOR"], today())
+        dates = {"min": today().isoformat(), "max": last_date.isoformat(), "limit_note": limit.note() if limit else None}
+        return jsonify({**options, "dates": dates})
 
     def parse_or_400():
         payload = request.get_json(silent=True)
         if not isinstance(payload, dict):
             return None, (jsonify({"errors": {"_": "JSON 본문이 필요합니다."}}), 400)
-        req, errors = _parse_request(payload, options, today())
+        req, errors = _parse_request(payload, options, today(), *_date_range(app.config["PREDICTOR"], today()))
         if errors:
             return None, (jsonify({"errors": errors}), 400)
         return req, None

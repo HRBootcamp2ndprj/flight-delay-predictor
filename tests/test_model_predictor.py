@@ -3,6 +3,7 @@
 import math
 import sys
 from datetime import date
+from types import SimpleNamespace
 
 import joblib
 import numpy as np
@@ -20,10 +21,18 @@ FEATURES = ["Origin", "dep_hour_local", "tail_leg_index_hist"]
 FAKE_SERVICE_FEATURES = '''
 CALLS = []
 
-def build_service_features(flight, as_of_date):
-    CALLS.append((flight, as_of_date))
+class StaleAggregatesError(ValueError):
+    pass
+
+def aggregate_range():
+    return ("2020-11", "2024-12", None)
+
+def build_service_features(flight, as_of_date, features=None):
+    CALLS.append((flight, as_of_date, features))
     if flight["CRSDepTime"] == "0313":
         raise RuntimeError("aggregates 조회 실패")
+    if flight["FlightDate"] >= "2025-03-01":
+        raise StaleAggregatesError("기준월이 집계표 범위 밖")
     return {"Origin": flight["Origin"], "dep_hour_local": int(flight["CRSDepTime"]) // 100, "source_max_month": "2024-03"}
 
 def service_feature_names():
@@ -53,13 +62,18 @@ def artifact(model, **overrides):
     return ModelArtifact.parse(raw)
 
 
-def build_from_flight(flight, as_of_date):
+def build_from_flight(flight, as_of_date, features=None):
     return {"Origin": flight["Origin"], "dep_hour_local": 17}
+
+
+FEATURES_MODULE = SimpleNamespace(build_service_features=build_from_flight,
+                                  StaleAggregatesError=type("StaleAggregatesError", (ValueError,), {}),
+                                  aggregate_range=lambda: ("2020-11", "2024-12", None))
 
 
 def test_categorical_uses_training_levels_not_single_row_codes():
     model = FixedModel([0.7, 0.2, 0.1])
-    ModelPredictor(artifact(model), build_from_flight).predict(request("ORD"))
+    ModelPredictor(artifact(model), FEATURES_MODULE).predict(request("ORD"))
     origin = model.seen["Origin"]
     assert list(origin.cat.categories) == ["ATL", "JFK", "ORD"]
     assert origin.cat.codes.iloc[0] == 2
@@ -67,19 +81,19 @@ def test_categorical_uses_training_levels_not_single_row_codes():
 
 def test_unseen_category_becomes_missing():
     model = FixedModel([0.7, 0.2, 0.1])
-    ModelPredictor(artifact(model), build_from_flight).predict(request("SFO"))
+    ModelPredictor(artifact(model), FEATURES_MODULE).predict(request("SFO"))
     assert model.seen["Origin"].cat.codes.iloc[0] == -1
 
 
 def test_feature_absent_from_builder_is_missing_value():
     model = FixedModel([0.7, 0.2, 0.1])
-    ModelPredictor(artifact(model), build_from_flight).predict(request())
+    ModelPredictor(artifact(model), FEATURES_MODULE).predict(request())
     assert list(model.seen.columns) == FEATURES
     assert math.isnan(model.seen["tail_leg_index_hist"].iloc[0])
 
 
 def test_normal_class_sampling_is_undone():
-    p = ModelPredictor(artifact(FixedModel([0.4, 0.5, 0.1]), normal_sample_rate=0.2), build_from_flight).predict(request())
+    p = ModelPredictor(artifact(FixedModel([0.4, 0.5, 0.1]), normal_sample_rate=0.2), FEATURES_MODULE).predict(request())
     total = 0.4 / 0.2 + 0.5 + 0.1
     assert p.delay_probability == pytest.approx(0.5 / total)
     assert p.cancel_probability == pytest.approx(0.1 / total)
@@ -134,8 +148,9 @@ def test_deployed_model_predicts_through_service_features(deployed):
     assert jfk["delay_probability"] > 0.5      # 학습 데이터에서 JFK 는 지연
     assert ord_["cancel_probability"] > 0.5    # ORD 는 결항
     import service_features
-    flight, as_of = service_features.CALLS[-1]
+    flight, as_of, features = service_features.CALLS[-1]
     assert (flight["CRSDepTime"], flight["CRSArrTime"], as_of) == ("1730", "2045", "2024-06-01")
+    assert features == FEATURES
 
 
 def test_hourly_shifts_arrival_for_each_hour(deployed):
@@ -152,10 +167,9 @@ def test_feature_builder_failure_returns_json_error(deployed):
     assert "_" in res.get_json()["errors"]
 
 
-def test_model_needs_features_src(deployed, monkeypatch):
-    monkeypatch.delenv("FLIGHT_FEATURES_SRC", raising=False)
-    with pytest.raises(RuntimeError, match="FLIGHT_FEATURES_SRC"):
-        load_predictor(deployed[0])
+def test_missing_features_module_fails_at_load(deployed, tmp_path):
+    with pytest.raises(RuntimeError, match="service_features.py"):
+        load_predictor(deployed[0], features_src=str(tmp_path / "nowhere"))
 
 
 def test_model_feature_the_service_cannot_build_fails_at_load(deployed):
@@ -168,3 +182,13 @@ def test_model_feature_the_service_cannot_build_fails_at_load(deployed):
 
 def test_without_model_file_uses_dummy(tmp_path):
     assert type(load_predictor(tmp_path)).__name__ == "DummyPredictor"
+
+
+def test_date_range_ends_before_first_month_the_data_cannot_cover(deployed):
+    client = client_for(*deployed)
+    dates = client.get("/api/options").get_json()["dates"]
+    assert dates["max"] == "2025-02-28"
+    assert "2024년 12월" in dates["limit_note"]
+    res = client.post("/api/predict", json={**BODY, "date": "2025-03-01"})
+    assert res.status_code == 400
+    assert "2025년 2월 28일 이후" in res.get_json()["errors"]["date"]
