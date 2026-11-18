@@ -1,0 +1,46 @@
+{
+ "congestion_corr": {
+  "origin_sched_deps_hour|proxy_ly": 0.931,
+  "origin_sched_deps_hour|proxy_recent": 0.9565,
+  "origin_sched_deps_day|proxy_ly": 0.9818,
+  "origin_sched_deps_day|proxy_recent": 0.988,
+  "dest_sched_arrs_hour|proxy_ly": 0.9365,
+  "dest_sched_arrs_hour|proxy_recent": 0.9578,
+  "carrier_sched_deps_origin_day|proxy_ly": 0.9871,
+  "carrier_sched_deps_origin_day|proxy_recent": 0.991
+ },
+ "timing_violations": {
+  "hist_carrier": 0,
+  "hist_origin": 0,
+  "hist_dest": 0,
+  "hist_route": 0,
+  "hist_origin_hour": 0,
+  "hist_carrier_origin": 0,
+  "tail_hist": 0,
+  "proxy_ly": 0,
+  "proxy_recent/origin_yoy": 0
+ },
+ "hist_missing": {
+  "train|hist_carrier": 0,
+  "train|hist_origin": 146,
+  "train|hist_dest": 151,
+  "train|hist_route": 12583,
+  "train|hist_origin_hour": 9785,
+  "train|hist_carrier_origin": 7231,
+  "validation|hist_carrier": 0,
+  "validation|hist_origin": 27,
+  "validation|hist_dest": 48,
+  "validation|hist_route": 1777,
+  "validation|hist_origin_hour": 935,
+  "validation|hist_carrier_origin": 648,
+  "test|hist_carrier": 0,
+  "test|hist_origin": 139,
+  "test|hist_dest": 126,
+  "test|hist_route": 2148,
+  "test|hist_origin_hour": 1186,
+  "test|hist_carrier_origin": 726
+ },
+ "bts_rows_aggregated": 34388825,
+ "flights_full": 27657704,
+ "flights_sampled": 6564835
+}

@@ -1,0 +1,111 @@
+  aggregates 2020-11: 364,367 rows
+  aggregates 2020-12: 371,357 rows
+  aggregates 2021-01: 361,428 rows
+  aggregates 2021-02: 332,468 rows
+  aggregates 2021-03: 444,476 rows
+  aggregates 2021-04: 450,637 rows
+  aggregates 2021-05: 495,544 rows
+  aggregates 2021-06: 546,124 rows
+  aggregates 2021-07: 583,258 rows
+  aggregates 2021-08: 579,179 rows
+  aggregates 2021-09: 538,051 rows
+  aggregates 2021-10: 564,788 rows
+  aggregates 2021-11: 547,559 rows
+  aggregates 2021-12: 551,885 rows
+  aggregates 2022-01: 537,902 rows
+  aggregates 2022-02: 495,713 rows
+  aggregates 2022-03: 564,853 rows
+  aggregates 2022-04: 556,502 rows
+  aggregates 2022-05: 578,819 rows
+  aggregates 2022-06: 577,283 rows
+  aggregates 2022-07: 594,957 rows
+  aggregates 2022-08: 589,810 rows
+  aggregates 2022-09: 557,494 rows
+  aggregates 2022-10: 572,287 rows
+  aggregates 2022-11: 546,410 rows
+  aggregates 2022-12: 557,095 rows
+  aggregates 2023-01: 538,837 rows
+  aggregates 2023-02: 502,749 rows
+  aggregates 2023-03: 580,322 rows
+  aggregates 2023-04: 561,441 rows
+  aggregates 2023-05: 579,958 rows
+  aggregates 2023-06: 577,262 rows
+  aggregates 2023-07: 601,866 rows
+  aggregates 2023-08: 602,987 rows
+  aggregates 2023-09: 569,338 rows
+  aggregates 2023-10: 598,968 rows
+  aggregates 2023-11: 563,777 rows
+  aggregates 2023-12: 570,394 rows
+  aggregates 2024-01: 547,271 rows
+  aggregates 2024-02: 519,221 rows
+  aggregates 2024-03: 591,767 rows
+  aggregates 2024-04: 582,185 rows
+  aggregates 2024-05: 609,743 rows
+  aggregates 2024-06: 611,132 rows
+  aggregates 2024-07: 634,613 rows
+  aggregates 2024-08: 619,025 rows
+  aggregates 2024-09: 582,622 rows
+  aggregates 2024-10: 615,497 rows
+  aggregates 2024-11: 575,404 rows
+  aggregates 2024-12: 590,581 rows
+  aggregates 2025-01: 539,747 rows
+  aggregates 2025-02: 504,884 rows
+  aggregates 2025-03: 600,872 rows
+  aggregates 2025-04: 583,950 rows
+  aggregates 2025-05: 605,648 rows
+  aggregates 2025-06: 611,575 rows
+  aggregates 2025-07: 631,428 rows
+  aggregates 2025-08: 602,378 rows
+  aggregates 2025-09: 562,439 rows
+  aggregates 2025-10: 605,844 rows
+  aggregates 2025-11: 570,550 rows
+  aggregates 2025-12: 582,304 rows
+  2022-01 train: 537,902 -> 213,148 same_ids_as_v2=True (peak 1783.6 MB)
+  2022-02 train: 495,713 -> 191,470 same_ids_as_v2=True (peak 1783.6 MB)
+  2022-03 train: 564,853 -> 215,928 same_ids_as_v2=True (peak 1783.6 MB)
+  2022-04 train: 556,502 -> 219,152 same_ids_as_v2=True (peak 1783.6 MB)
+  2022-05 train: 578,819 -> 221,562 same_ids_as_v2=True (peak 1783.6 MB)
+  2022-06 train: 577,283 -> 241,085 same_ids_as_v2=True (peak 1783.6 MB)
+  2022-07 train: 594,957 -> 240,488 same_ids_as_v2=True (peak 1783.6 MB)
+  2022-08 train: 589,810 -> 235,264 same_ids_as_v2=True (peak 1783.6 MB)
+  2022-09 train: 557,494 -> 193,263 same_ids_as_v2=True (peak 1783.6 MB)
+  2022-10 train: 572,287 -> 193,311 same_ids_as_v2=True (peak 1783.6 MB)
+  2022-11 train: 546,410 -> 193,997 same_ids_as_v2=True (peak 1783.6 MB)
+  2022-12 train: 557,095 -> 249,057 same_ids_as_v2=True (peak 1783.6 MB)
+  2023-01 train: 538,837 -> 205,227 same_ids_as_v2=True (peak 1783.6 MB)
+  2023-02 train: 502,749 -> 180,779 same_ids_as_v2=True (peak 1783.6 MB)
+  2023-03 train: 580,322 -> 225,331 same_ids_as_v2=True (peak 1783.6 MB)
+  2023-04 train: 561,441 -> 218,835 same_ids_as_v2=True (peak 1783.6 MB)
+  2023-05 train: 579,958 -> 204,105 same_ids_as_v2=True (peak 1783.6 MB)
+  2023-06 train: 577,262 -> 246,737 same_ids_as_v2=True (peak 1783.6 MB)
+  2023-07 train: 601,866 -> 267,428 same_ids_as_v2=True (peak 1783.6 MB)
+  2023-08 train: 602,987 -> 233,180 same_ids_as_v2=True (peak 1783.6 MB)
+  2023-09 train: 569,338 -> 202,740 same_ids_as_v2=True (peak 1783.6 MB)
+  2023-10 train: 598,968 -> 197,478 same_ids_as_v2=True (peak 1783.6 MB)
+  2023-11 train: 563,777 -> 175,971 same_ids_as_v2=True (peak 1783.6 MB)
+  2023-12 train: 570,394 -> 191,232 same_ids_as_v2=True (peak 1783.6 MB)
+  2024-01 validation: 547,271 -> 54,727 same_ids_as_v2=True (peak 1783.6 MB)
+  2024-02 validation: 519,221 -> 51,922 same_ids_as_v2=True (peak 1783.6 MB)
+  2024-03 validation: 591,767 -> 59,177 same_ids_as_v2=True (peak 1783.6 MB)
+  2024-04 validation: 582,185 -> 58,219 same_ids_as_v2=True (peak 1783.6 MB)
+  2024-05 validation: 609,743 -> 60,974 same_ids_as_v2=True (peak 1783.6 MB)
+  2024-06 validation: 611,132 -> 61,113 same_ids_as_v2=True (peak 1783.6 MB)
+  2024-07 validation: 634,613 -> 63,461 same_ids_as_v2=True (peak 1783.6 MB)
+  2024-08 validation: 619,025 -> 61,902 same_ids_as_v2=True (peak 1783.6 MB)
+  2024-09 validation: 582,622 -> 58,263 same_ids_as_v2=True (peak 1783.6 MB)
+  2024-10 validation: 615,497 -> 61,549 same_ids_as_v2=True (peak 1783.6 MB)
+  2024-11 validation: 575,404 -> 57,541 same_ids_as_v2=True (peak 1783.6 MB)
+  2024-12 validation: 590,581 -> 59,058 same_ids_as_v2=True (peak 1783.6 MB)
+  2025-01 test: 539,747 -> 53,974 same_ids_as_v2=True (peak 1783.6 MB)
+  2025-02 test: 504,884 -> 50,488 same_ids_as_v2=True (peak 1783.6 MB)
+  2025-03 test: 600,872 -> 60,087 same_ids_as_v2=True (peak 1783.6 MB)
+  2025-04 test: 583,950 -> 58,395 same_ids_as_v2=True (peak 1783.6 MB)
+  2025-05 test: 605,648 -> 60,564 same_ids_as_v2=True (peak 1783.6 MB)
+  2025-06 test: 611,575 -> 61,158 same_ids_as_v2=True (peak 1783.6 MB)
+  2025-07 test: 631,428 -> 63,143 same_ids_as_v2=True (peak 1783.6 MB)
+  2025-08 test: 602,378 -> 60,238 same_ids_as_v2=True (peak 1783.6 MB)
+  2025-09 test: 562,439 -> 56,244 same_ids_as_v2=True (peak 1783.6 MB)
+  2025-10 test: 605,844 -> 60,584 same_ids_as_v2=True (peak 1783.6 MB)
+  2025-11 test: 570,550 -> 57,055 same_ids_as_v2=True (peak 1783.6 MB)
+  2025-12 test: 582,304 -> 58,231 same_ids_as_v2=True (peak 1783.6 MB)
+[preprocess_flights] 444.9s, peak 1783.6 MB

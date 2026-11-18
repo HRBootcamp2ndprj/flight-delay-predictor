@@ -1,0 +1,5 @@
+{"script": "preprocess_flights", "seconds": 444.9, "peak_memory_mb": 1783.6, "finished_at": "2026-11-18 12:14:16", "flights_full": 27657704, "flights_sampled": 6564835}
+{"script": "merge_datasets", "seconds": 51.4, "peak_memory_mb": 1222.3, "finished_at": "2026-11-18 12:15:14", "rows": 6564835, "ml_rows": 6559804, "proxy": "proxy_recent"}
+{"script": "validate_dataset", "seconds": 93.3, "peak_memory_mb": 3410.1, "finished_at": "2026-11-18 12:19:04"}
+{"script": "validate_dataset", "seconds": 94.7, "peak_memory_mb": 3429.0, "finished_at": "2026-11-18 12:21:02"}
+{"script": "validate_dataset", "seconds": 93.3, "peak_memory_mb": 3371.1, "finished_at": "2026-11-18 12:22:49"}

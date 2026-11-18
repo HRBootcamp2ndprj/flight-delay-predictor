@@ -1,0 +1,25 @@
+{
+ "rows": {
+  "train": 5156768,
+  "validation": 707906,
+  "test": 700161
+ },
+ "ml_rows": {
+  "train": 5153143,
+  "validation": 707279,
+  "test": 699382
+ },
+ "id_equal_months": 48,
+ "id_diff_months": [],
+ "label_mismatch": 0,
+ "leak_origin_future": 0,
+ "leak_dest_future": 0,
+ "leak_origin_over_tol": 0,
+ "leak_dest_over_tol": 0,
+ "timing_violation_rows": 0,
+ "proxy_choice": "proxy_recent",
+ "proxy_mean_corr": {
+  "proxy_ly": 0.9591,
+  "proxy_recent": 0.9733250000000001
+ }
+}
