@@ -189,6 +189,17 @@ function fillForm(q) {
   destCombo.set(q.dest);
   if (q.date) form.elements.date.value = q.date;
   form.elements.dep_time.value = q.dep_time;
+  form.elements.arr_time.value = q.arr_time;
+}
+
+const toMinutes = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+const toHHMM = (min) => { const m = ((min % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; };
+
+// 출발 시각만 바꾸고 예정 소요시간은 유지한다 (서버의 시간대별 비교와 같은 규칙)
+function setDeparture(hhmm) {
+  const { dep_time, arr_time } = form.elements;
+  if (arr_time.value && dep_time.value) arr_time.value = toHHMM(toMinutes(arr_time.value) + toMinutes(hhmm) - toMinutes(dep_time.value));
+  dep_time.value = hhmm;
 }
 
 $("swap").addEventListener("click", () => {
@@ -236,13 +247,13 @@ function chip(q) {
 
 function renderRecent() {
   const today = localISODate(new Date());
-  const items = storage.get(RECENT_KEY, []).filter((q) => q.date >= today);
+  const items = storage.get(RECENT_KEY, []).filter((q) => q.date >= today && q.arr_time);
   $("recent-row").hidden = !items.length;
   $("recent-list").replaceChildren(...items.map((q) => chip(q)));
 }
 
 function remember(q) {
-  const key = (x) => [x.airline, x.origin, x.dest, x.date, x.dep_time].join("|");
+  const key = (x) => [x.airline, x.origin, x.dest, x.date, x.dep_time, x.arr_time].join("|");
   const items = storage.get(RECENT_KEY, []).filter((x) => key(x) !== key(q));
   storage.set(RECENT_KEY, [q, ...items].slice(0, RECENT_MAX));
   renderRecent();
@@ -268,7 +279,7 @@ function renderResult(q, single, hourly) {
   $("r-airline").textContent = al ? `${al.name_ko} (${al.code})` : q.airline;
   const [y, m, d] = q.date.split("-").map(Number);
   $("r-date").textContent = new Intl.DateTimeFormat("ko-KR", { dateStyle: "full" }).format(new Date(y, m - 1, d));
-  $("r-time").textContent = `출발 예정 ${q.dep_time}`;
+  $("r-time").textContent = `출발 ${q.dep_time} → 도착 ${q.arr_time}`;
 
   renderMetric("delay", single.delay_probability);
   renderMetric("cancel", single.cancel_probability);
@@ -355,7 +366,7 @@ function renderHourlyChart(el, kind, hours, selectedHour) {
     hit.addEventListener("blur", hideTooltip);
     const pick = () => {
       hideTooltip();
-      form.elements.dep_time.value = `${String(h.hour).padStart(2, "0")}:00`;
+      setDeparture(`${String(h.hour).padStart(2, "0")}:00`);
       form.requestSubmit();
     };
     hit.addEventListener("click", pick);

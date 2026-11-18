@@ -16,7 +16,7 @@ class FixedPredictor:
 
 
 TODAY = date(2024, 6, 1)  # 테스트용 고정 "오늘"
-VALID = {"airline": "AA", "origin": "JFK", "dest": "LAX", "date": "2024-07-04", "dep_time": "17:30"}
+VALID = {"airline": "AA", "origin": "JFK", "dest": "LAX", "date": "2024-07-04", "dep_time": "17:30", "arr_time": "20:45"}
 
 
 @pytest.fixture
@@ -47,18 +47,18 @@ def test_predict_returns_probabilities(client):
     assert res.get_json() == {"delay_probability": 0.25, "cancel_probability": 0.03, "model_version": "fixed"}
 
 
-def test_predict_builds_bts_feature_row(client, predictor):
-    client.post("/api/predict", json={**VALID, "airline": "aa"})
-    row = predictor.last_request.to_feature_row()
-    assert row == {
-        "FlightDate": "2024-07-04",
-        "Month": 7,
-        "DayofMonth": 4,
-        "DayOfWeek": 4,  # 2024-07-04 은 목요일
-        "CRSDepTime": 1730,
+def test_predict_builds_service_flight(client, predictor):
+    client.post("/api/predict", json={**VALID, "airline": "aa", "dep_time": "07:05"})
+    req = predictor.last_request
+    assert req.as_of == TODAY
+    assert req.to_service_flight() == {
         "Reporting_Airline": "AA",
+        "Flight_Number_Reporting_Airline": "",
         "Origin": "JFK",
         "Dest": "LAX",
+        "FlightDate": "2024-07-04",
+        "CRSDepTime": "0705",
+        "CRSArrTime": "2045",
     }
 
 
@@ -73,6 +73,8 @@ def test_predict_builds_bts_feature_row(client, predictor):
         ({"date": "2025-06-02"}, "date"),  # 366일 뒤
         ({"dep_time": "25:00"}, "dep_time"),
         ({"dep_time": "noon"}, "dep_time"),
+        ({"arr_time": ""}, "arr_time"),
+        ({"arr_time": "24:00"}, "arr_time"),
     ],
 )
 def test_predict_rejects_invalid_input(client, override, field):
@@ -118,6 +120,9 @@ def test_hourly_varies_only_departure_hour(client, predictor):
     assert data["hours"][0] == {"hour": 6, "delay_probability": 0.1, "cancel_probability": 0.01}
     assert {(r.airline, r.origin, r.dest, r.flight_date) for r in seen} == {("AA", "JFK", "LAX", date(2024, 7, 4))}
     assert [(r.dep_hour, r.dep_minute) for r in seen] == [(h, 0) for h in range(6, 23)]
+    # 예정 소요시간 3시간 15분 유지: 17:30 -> 20:45 이므로 06:00 -> 09:15, 22:00 -> 다음날 01:15
+    assert (seen[0].arr_hour, seen[0].arr_minute) == (9, 15)
+    assert (seen[-1].arr_hour, seen[-1].arr_minute) == (1, 15)
 
 
 def test_hourly_validates_like_predict(client):

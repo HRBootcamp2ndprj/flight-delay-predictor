@@ -1,28 +1,24 @@
 """예측기: 예측 요청 -> 예측 결과.
 
-Flask는 이 모듈의 `Predictor` 인터페이스만 안다. 실제 모델이 준비되면
-`models/` 에 joblib 파일을 두기만 하면 `load_predictor()` 가 자동으로 교체한다.
-모델 파일 계약은 docs/adr/0001-model-artifact-includes-preprocessing.md 참고.
+Flask는 이 모듈의 `Predictor` 인터페이스만 안다. `models/model.joblib` 이 있으면 데이터 팀의
+`build_service_features` 로 피처를 만들어 모델에 넣고, 없으면 더미 예측기를 쓴다.
+모델 파일 계약은 docs/adr/0002-service-features-and-model-artifact.md 참고.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import importlib
+import math
+import os
+import sys
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Callable, Protocol
 
-# ADR-0001 의 계약. 모델 Pipeline 이 받는 BTS 원본 컬럼.
-FEATURE_COLUMNS = [
-    "FlightDate",
-    "Month",
-    "DayofMonth",
-    "DayOfWeek",
-    "CRSDepTime",
-    "Reporting_Airline",
-    "Origin",
-    "Dest",
-]
+MINUTES_PER_DAY = 24 * 60
+FEATURES_SRC_ENV = "FLIGHT_FEATURES_SRC"
+CLASSES = [0, 1, 2]  # 정상, 지연, 결항 (데이터셋 v3 label)
 
 
 @dataclass(frozen=True)
@@ -33,18 +29,26 @@ class PredictionRequest:
     flight_date: date
     dep_hour: int
     dep_minute: int
+    arr_hour: int
+    arr_minute: int
+    as_of: date  # 예측하는 날. 이 날 기준으로 공개된 BTS만 쓴다
 
-    def to_feature_row(self) -> dict:
-        d = self.flight_date
+    def with_departure(self, hour: int, minute: int = 0) -> PredictionRequest:
+        """출발 시각만 바꾸고 예정 소요시간은 유지한다 (도착 시각을 같은 만큼 옮긴다)."""
+        shift = (hour * 60 + minute) - (self.dep_hour * 60 + self.dep_minute)
+        arr = (self.arr_hour * 60 + self.arr_minute + shift) % MINUTES_PER_DAY
+        return replace(self, dep_hour=hour, dep_minute=minute, arr_hour=arr // 60, arr_minute=arr % 60)
+
+    def to_service_flight(self) -> dict:
+        """데이터 팀 `build_service_features` 의 입력 형식 (BTS 컬럼 이름, 현지 hhmm)."""
         return {
-            "FlightDate": d.isoformat(),
-            "Month": d.month,
-            "DayofMonth": d.day,
-            "DayOfWeek": d.isoweekday(),  # BTS: 1=월 ... 7=일
-            "CRSDepTime": self.dep_hour * 100 + self.dep_minute,
             "Reporting_Airline": self.airline,
+            "Flight_Number_Reporting_Airline": "",  # 기체 일정 피처에만 쓰인다. 지금은 받지 않는다
             "Origin": self.origin,
             "Dest": self.dest,
+            "FlightDate": self.flight_date.isoformat(),
+            "CRSDepTime": f"{self.dep_hour:02d}{self.dep_minute:02d}",
+            "CRSArrTime": f"{self.arr_hour:02d}{self.arr_minute:02d}",
         }
 
 
@@ -95,30 +99,80 @@ class DummyPredictor:
         )
 
 
-class JoblibPredictor:
-    """ADR-0001 계약을 따르는 sklearn Pipeline 두 개를 감싼다."""
+@dataclass(frozen=True)
+class ModelArtifact:
+    """`models/model.joblib` 에 담긴 dict 를 검증한 것 (ADR-0002)."""
 
-    def __init__(self, delay_path: Path, cancel_path: Path):
-        import joblib  # 실제 모델이 있을 때만 필요
+    model: Any
+    features: list[str]
+    categories: dict[str, list[str]]
+    normal_sample_rate: float
+    version: str
 
-        self._delay = joblib.load(delay_path)
-        self._cancel = joblib.load(cancel_path)
-        self.version = f"joblib:{delay_path.stem}+{cancel_path.stem}"
+    REQUIRED = ("model", "features", "categories", "normal_sample_rate", "version")
+
+    @classmethod
+    def parse(cls, raw: Any) -> ModelArtifact:
+        if not isinstance(raw, dict):
+            raise ValueError("model.joblib 은 dict 여야 합니다 (ADR-0002).")
+        missing = [k for k in cls.REQUIRED if k not in raw]
+        if missing:
+            raise ValueError(f"model.joblib 에 필요한 키가 없습니다: {', '.join(missing)} (ADR-0002).")
+        classes = getattr(raw["model"], "classes_", None)
+        if classes is not None and [int(c) for c in classes] != CLASSES:
+            raise ValueError(f"모델 classes_ 는 {CLASSES} (정상, 지연, 결항) 이어야 합니다: {list(classes)}")
+        rate = float(raw["normal_sample_rate"])
+        if not 0 < rate <= 1:
+            raise ValueError(f"normal_sample_rate 는 (0, 1] 이어야 합니다: {rate}")
+        unknown_cats = set(raw["categories"]) - set(raw["features"])
+        if unknown_cats:
+            raise ValueError(f"categories 에 features 에 없는 컬럼이 있습니다: {sorted(unknown_cats)}")
+        return cls(raw["model"], list(raw["features"]), {k: list(v) for k, v in raw["categories"].items()},
+                   rate, str(raw["version"]))
+
+
+class ModelPredictor:
+    def __init__(self, artifact: ModelArtifact, build_features: Callable[..., dict]):
+        self._a = artifact
+        self._build_features = build_features
+        self.version = artifact.version
 
     def predict(self, request: PredictionRequest) -> Prediction:
         import pandas as pd
 
-        X = pd.DataFrame([request.to_feature_row()], columns=FEATURE_COLUMNS)
-        return Prediction(
-            delay_probability=float(self._delay.predict_proba(X)[0, 1]),
-            cancel_probability=float(self._cancel.predict_proba(X)[0, 1]),
-            model_version=self.version,
-        )
+        feats = self._build_features(request.to_service_flight(), as_of_date=request.as_of.isoformat())
+        # 참조 데이터가 없는 피처(신규 노선, 기체 일정 미발견 등)는 학습셋처럼 결측으로 둔다
+        X = pd.DataFrame([{f: feats.get(f, math.nan) for f in self._a.features}], columns=self._a.features)
+        # 한 행을 그냥 category 로 바꾸면 어떤 값이든 코드 0이 된다. 학습 때 범주 목록으로 맞추고, 없는 값은 결측
+        for col, levels in self._a.categories.items():
+            X[col] = pd.Categorical(X[col].where(X[col].isin(levels)), categories=levels)
+        normal, delay, cancel = (float(p) for p in self._a.model.predict_proba(X)[0])
+        # 학습셋은 정상편만 normal_sample_rate 로 뽑았으므로 정상 확률을 되돌린 뒤 다시 정규화한다
+        normal /= self._a.normal_sample_rate
+        total = normal + delay + cancel
+        return Prediction(delay / total, cancel / total, self.version)
 
 
-def load_predictor(models_dir: Path) -> Predictor:
-    delay_path = models_dir / "delay.joblib"
-    cancel_path = models_dir / "cancel.joblib"
-    if delay_path.exists() and cancel_path.exists():
-        return JoblibPredictor(delay_path, cancel_path)
-    return DummyPredictor()
+def _import_service_features(src_dir: Path):
+    if not (src_dir / "service_features.py").exists():
+        raise RuntimeError(f"{FEATURES_SRC_ENV}={src_dir} 에 service_features.py 가 없습니다.")
+    sys.path.insert(0, str(src_dir))
+    return importlib.import_module("service_features")
+
+
+def load_predictor(models_dir: Path, features_src: str | None = None) -> Predictor:
+    model_path = models_dir / "model.joblib"
+    if not model_path.exists():
+        return DummyPredictor()
+
+    import joblib
+
+    features_src = features_src or os.environ.get(FEATURES_SRC_ENV)
+    if not features_src:
+        raise RuntimeError(f"{model_path} 를 쓰려면 {FEATURES_SRC_ENV} 에 데이터 팀 src 폴더 경로를 지정하세요.")
+    module = _import_service_features(Path(features_src))
+    artifact = ModelArtifact.parse(joblib.load(model_path))
+    unknown = set(artifact.features) - set(module.service_feature_names())
+    if unknown:
+        raise RuntimeError(f"서비스에서 만들 수 없는 피처가 모델에 있습니다: {sorted(unknown)}")
+    return ModelPredictor(artifact, module.build_service_features)

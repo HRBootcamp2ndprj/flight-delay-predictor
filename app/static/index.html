@@ -99,6 +99,14 @@
         <small class="error" data-for="dep_time"></small>
       </div>
 
+      <div class="field f-time">
+        <label for="arr_time">도착 시각</label>
+        <div class="control">
+          <input id="arr_time" type="time" name="arr_time" step="300" required>
+        </div>
+        <small class="error" data-for="arr_time"></small>
+      </div>
+
       <button type="submit" class="primary">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.9 2.1 2.1.9-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>
         예측하기
@@ -135,7 +143,7 @@
         <article class="metric" data-kind="delay">
           <header>
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>
-            <h2>지연 확률 <small>도착 15분 이상</small></h2>
+            <h2>지연 확률 <small>출발 15분 이상</small></h2>
           </header>
           <p class="big"><span class="num" id="delay-prob"></span><span class="pct">%</span></p>
           <div class="meter" role="presentation"><span id="delay-meter"></span></div>
