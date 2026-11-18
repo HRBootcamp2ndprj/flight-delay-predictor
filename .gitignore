@@ -2,5 +2,6 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-# BTS 원본 데이터는 용량이 커서 커밋하지 않음
+# BTS 원본 데이터와 학습된 모델은 용량이 커서 커밋하지 않음
 data/raw/
+models/*.joblib
