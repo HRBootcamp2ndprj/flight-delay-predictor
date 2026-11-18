@@ -156,10 +156,11 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
   /* backdrop-filter가 폼을 별도 쌓임 맥락으로 만들어 목록의 z-index가 폼 밖에 닿지 않으므로, 폼 자체를 칩·결과보다 위에 둔다 */
   position: relative; z-index: 2;
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 2.2fr) minmax(0, .95fr) minmax(0, .9fr) minmax(0, .9fr) auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
   gap: 14px; align-items: start;
   padding: 22px 24px;
 }
+.route { grid-column: 2 / -1; }
 .field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
 .field > label { font-size: .88rem; font-weight: 700; color: var(--text-secondary); padding-left: 2px; }
 .control {
@@ -330,7 +331,7 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
 .tooltip .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; }
 
 /* ───────── Responsive ───────── */
-@media (max-width: 1279px) {
+@media (max-width: 1080px) {
   .search { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .route { grid-column: 1 / -1; grid-row: 2; }
   .f-airline, .f-date { grid-column: 1 / -1; }
