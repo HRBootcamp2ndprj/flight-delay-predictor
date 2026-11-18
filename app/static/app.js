@@ -284,6 +284,12 @@ function renderResult(q, single, hourly) {
   renderMetric("delay", single.delay_probability);
   renderMetric("cancel", single.cancel_probability);
 
+  // 차트 라벨 크기를 재려면 그리기 전에 화면에 보여야 한다
+  const section = $("result");
+  const wasHidden = section.hidden;
+  section.hidden = false;
+  document.querySelector(".hourly").hidden = !hourly;
+
   const selectedHour = Number(q.dep_time.split(":")[0]);
   if (hourly) {
     renderHourlyChart($("chart-delay"), "delay", hourly.hours, selectedHour);
@@ -293,11 +299,6 @@ function renderResult(q, single, hourly) {
         <td>${String(h.hour).padStart(2, "0")}:00</td><td>${pct(h.delay_probability)}%</td><td>${pct(h.cancel_probability)}%</td>
       </tr>`).join("");
   }
-  document.querySelector(".hourly").hidden = !hourly;
-
-  const section = $("result");
-  const wasHidden = section.hidden;
-  section.hidden = false;
   if (wasHidden) section.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -329,6 +330,7 @@ function renderHourlyChart(el, kind, hours, selectedHour) {
   const minIdx = hours.reduce((best, h, i) => (h[key] < hours[best][key] ? i : best), 0);
   const selIdx = hours.findIndex((h) => h.hour === selectedHour);
   const hasSel = selIdx >= 0;
+  const bars = [];
 
   hours.forEach((h, i) => {
     const cx = padL + band * i + band / 2;
@@ -337,6 +339,7 @@ function renderHourlyChart(el, kind, hours, selectedHour) {
     const hgt = Math.max(base - top, 1);
     const r = Math.min(4, hgt, bw / 2);
     const x0 = cx - bw / 2, x1 = cx + bw / 2;
+    bars.push({ x0, x1, top });
     const path = `M${x0},${base} V${top + r} Q${x0},${top} ${x0 + r},${top} H${x1 - r} Q${x1},${top} ${x1},${top + r} V${base} Z`;
     const dim = hasSel && i !== selIdx ? " dim" : "";
     svg += `<rect class="hit" x="${padL + band * i}" y="${padT}" width="${band}" height="${innerH}" tabindex="0" role="button"
@@ -356,6 +359,8 @@ function renderHourlyChart(el, kind, hours, selectedHour) {
   if (!hasSel || Math.abs(minIdx - selIdx) > 1) label(minIdx, `최저 ${pct(hours[minIdx][key])}%`, "sub");
   svg += "</svg>";
   el.innerHTML = svg;
+  const minLabel = el.querySelector(".lbl.sub");
+  if (minLabel) liftIntoBadge(minLabel, bars, [...el.querySelectorAll(".lbl:not(.sub)")]);
 
   el.querySelectorAll(".hit").forEach((hit) => {
     const h = hours[Number(hit.dataset.i)];
@@ -372,6 +377,24 @@ function renderHourlyChart(el, kind, hours, selectedHour) {
     hit.addEventListener("click", pick);
     hit.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
   });
+}
+
+// 최저 라벨을 테두리 있는 배지로 감싸고, 배지가 가로로 걸치는 막대와 다른 라벨보다 위로 올린다
+function liftIntoBadge(text, bars, others) {
+  const padX = 6, padY = 3, gap = 4;
+  const box = text.getBBox();
+  const left = box.x - padX, right = box.x + box.width + padX;
+  const spans = (x0, x1) => x1 > left && x0 < right;
+  const tops = [
+    ...bars.filter((b) => spans(b.x0, b.x1)).map((b) => b.top),
+    ...others.map((t) => t.getBBox()).filter((o) => spans(o.x, o.x + o.width)).map((o) => o.y),
+  ];
+  const height = box.height + padY * 2;
+  const rectY = Math.max(0, Math.min(...tops) - gap - height);
+  text.setAttribute("y", Number(text.getAttribute("y")) + (rectY + padY - box.y));
+  const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  Object.entries({ class: "badge", x: left, y: rectY, width: right - left, height, rx: height / 2 }).forEach(([k, v]) => rect.setAttribute(k, v));
+  text.before(rect);
 }
 
 const tooltip = $("tooltip");

@@ -305,6 +305,7 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
 .chart-body .tick { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .chart-body .lbl { fill: var(--text-primary); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .chart-body .lbl.sub { fill: var(--text-secondary); font-weight: 600; }
+.chart-body .badge { fill: var(--surface-1); stroke: var(--field-border); stroke-width: 1; pointer-events: none; }
 .chart-body .bar { transition: opacity .15s; pointer-events: none; }
 .chart[data-kind="delay"] .bar { fill: var(--series-delay); }
 .chart[data-kind="cancel"] .bar { fill: var(--series-cancel); }
