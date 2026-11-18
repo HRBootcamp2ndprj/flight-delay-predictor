@@ -356,7 +356,7 @@ function renderHourlyChart(el, kind, hours, selectedHour) {
     svg += `<text class="lbl ${cls}" x="${x}" y="${y(hours[i][key]) - 6}" text-anchor="${anchor}">${text}</text>`;
   };
   if (hasSel) label(selIdx, `${pct(hours[selIdx][key])}%`, "");
-  if (!hasSel || Math.abs(minIdx - selIdx) > 1) label(minIdx, `${String(hours[minIdx].hour).padStart(2, "0")}:00 출발 · 최저 ${pct(hours[minIdx][key])}%`, "sub");
+  if (!hasSel || Math.abs(minIdx - selIdx) > 1) label(minIdx, `${String(hours[minIdx].hour).padStart(2, "0")}시 · 최저 ${pct(hours[minIdx][key])}%`, "sub");
   svg += "</svg>";
   el.innerHTML = svg;
   const minLabel = el.querySelector(".lbl.sub");
