@@ -53,12 +53,14 @@ $("theme-toggle").addEventListener("click", () => {
   try { localStorage.setItem("theme", root.dataset.theme); } catch {}
 });
 
-// ───────── 공항 콤보박스 (목록 드롭다운 + 검색) ─────────
+// ───────── 콤보박스 (목록 드롭다운 + 검색): 항공사, 출발지, 도착지 ─────────
 
-class AirportCombo {
-  constructor(root, items) {
+class Combo {
+  constructor(root, items, emptyText) {
     this.root = root;
     this.items = items;
+    this.byCode = new Map(items.map((a) => [a.code, a]));
+    this.emptyText = emptyText;
     this.hidden = root.querySelector('input[type="hidden"]');
     this.input = root.querySelector(".combo-input");
     this.list = root.querySelector(".combo-list");
@@ -82,7 +84,7 @@ class AirportCombo {
   }
 
   label(code) {
-    const a = byCode[code];
+    const a = this.byCode.get(code);
     return a ? `${a.code} ${a.name_ko}` : "";
   }
 
@@ -125,7 +127,7 @@ class AirportCombo {
 
   render() {
     if (!this.matches.length) {
-      this.list.innerHTML = '<li class="empty">일치하는 공항이 없어요</li>';
+      this.list.innerHTML = `<li class="empty">${this.emptyText}</li>`;
       return;
     }
     const id = this.list.id;
@@ -178,7 +180,7 @@ class AirportCombo {
   }
 }
 
-let originCombo, destCombo;
+let airlineCombo, originCombo, destCombo;
 
 // ───────── 폼 ─────────
 
@@ -187,7 +189,7 @@ function showErrors(errors) {
 }
 
 function fillForm(q) {
-  form.elements.airline.value = q.airline;
+  airlineCombo.set(q.airline);
   originCombo.set(q.origin);
   destCombo.set(q.dest);
   if (q.date) form.elements.date.value = q.date;
@@ -396,11 +398,10 @@ async function init() {
   OPTIONS = await (await fetch("/api/options")).json();
   OPTIONS.airports.forEach((a) => { byCode[a.code] = a; });
 
-  form.elements.airline.innerHTML = '<option value="">항공사 선택</option>' +
-    OPTIONS.airlines.map((a) => `<option value="${a.code}">${a.code} ${escapeHTML(a.name_ko)}</option>`).join("");
-
-  originCombo = new AirportCombo(form.querySelector('[data-name="origin"]'), OPTIONS.airports);
-  destCombo = new AirportCombo(form.querySelector('[data-name="dest"]'), OPTIONS.airports);
+  const combo = (name, items, emptyText) => new Combo(form.querySelector(`[data-name="${name}"]`), items, emptyText);
+  airlineCombo = combo("airline", OPTIONS.airlines, "일치하는 항공사가 없어요");
+  originCombo = combo("origin", OPTIONS.airports, "일치하는 공항이 없어요");
+  destCombo = combo("dest", OPTIONS.airports, "일치하는 공항이 없어요");
 
   const today = new Date();
   form.elements.date.min = localISODate(today);
