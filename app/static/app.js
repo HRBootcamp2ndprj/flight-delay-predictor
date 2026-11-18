@@ -283,7 +283,6 @@ function renderResult(q, single, hourly) {
       </tr>`).join("");
   }
   document.querySelector(".hourly").hidden = !hourly;
-  $("model-version").textContent = `모델: ${single.model_version}`;
 
   const section = $("result");
   const wasHidden = section.hidden;

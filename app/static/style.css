@@ -312,7 +312,6 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
 .table-view th:first-child, .table-view td:first-child { text-align: left; }
 .table-view tr.current td { font-weight: 800; }
 
-.version { margin: 0; color: var(--text-muted); font-size: .78rem; text-align: right; }
 
 .tooltip {
   position: fixed; z-index: 50; pointer-events: none;
