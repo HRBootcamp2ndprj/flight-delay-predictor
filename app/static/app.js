@@ -9,11 +9,6 @@ const RISK_THRESHOLDS = {
 const BOOKING_WINDOW_DAYS = 365; // 서버와 동일
 const RECENT_KEY = "recentQueries";
 const RECENT_MAX = 5;
-const EXAMPLES = [
-  { airline: "AA", origin: "JFK", dest: "LAX", dep_time: "08:00" },
-  { airline: "DL", origin: "ATL", dest: "MCO", dep_time: "18:30" },
-  { airline: "UA", origin: "ORD", dest: "SFO", dep_time: "13:15" },
-];
 
 const $ = (id) => document.getElementById(id);
 const form = $("predict-form");
@@ -227,13 +222,13 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
-// ───────── 최근 조회 / 예시 ─────────
+// ───────── 최근 조회 ─────────
 
-function chip(q, withDate) {
+function chip(q) {
   const b = document.createElement("button");
   b.type = "button";
   b.className = "chip";
-  const d = withDate && q.date ? `<small>${q.date.slice(5).replace("-", "/")} ${q.dep_time}</small>` : "";
+  const d = q.date ? `<small>${q.date.slice(5).replace("-", "/")} ${q.dep_time}</small>` : "";
   b.innerHTML = `${escapeHTML(q.airline)} ${escapeHTML(q.origin)} → ${escapeHTML(q.dest)}${d}`;
   b.addEventListener("click", () => { fillForm(q); form.requestSubmit(); });
   return b;
@@ -243,7 +238,7 @@ function renderRecent() {
   const today = localISODate(new Date());
   const items = storage.get(RECENT_KEY, []).filter((q) => q.date >= today);
   $("recent-row").hidden = !items.length;
-  $("recent-list").replaceChildren(...items.map((q) => chip(q, true)));
+  $("recent-list").replaceChildren(...items.map((q) => chip(q)));
 }
 
 function remember(q) {
@@ -251,11 +246,6 @@ function remember(q) {
   const items = storage.get(RECENT_KEY, []).filter((x) => key(x) !== key(q));
   storage.set(RECENT_KEY, [q, ...items].slice(0, RECENT_MAX));
   renderRecent();
-}
-
-function renderExamples() {
-  const date = localISODate(addDays(new Date(), 14));
-  $("example-list").replaceChildren(...EXAMPLES.map((q) => chip({ ...q, date }, false)));
 }
 
 // ───────── 결과 ─────────
@@ -409,7 +399,6 @@ async function init() {
   form.elements.date.value = localISODate(addDays(today, 14));
   form.elements.dep_time.value = "09:00";
 
-  renderExamples();
   renderRecent();
 }
 
