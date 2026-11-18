@@ -124,3 +124,10 @@ def test_hourly_validates_like_predict(client):
     res = client.post("/api/predict/hourly", json={**VALID, "origin": "XXX"})
     assert res.status_code == 400
     assert "origin" in res.get_json()["errors"]
+
+
+def test_sky_video_assets_served(client):
+    for path in ("/static/video/sky-loop.mp4", "/static/video/sky-loop-poster.jpg"):
+        res = client.get(path)
+        assert res.status_code == 200, path
+        res.close()

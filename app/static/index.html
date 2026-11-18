@@ -16,10 +16,9 @@
 </head>
 <body>
   <div class="sky" aria-hidden="true">
-    <svg class="sky-plane" viewBox="0 0 200 60">
-      <path d="M8 44 C 60 40, 120 30, 168 12" class="trail" />
-      <path d="M170 10 l18 -6 l3 3 l-12 9 l6 10 l-3 2 l-9 -8 l-10 6 l-2 -2 l7 -8 z" class="plane" />
-    </svg>
+    <video class="sky-video" id="sky-video" muted loop playsinline preload="auto" poster="/static/video/sky-loop-poster.jpg">
+      <source src="/static/video/sky-loop.mp4" type="video/mp4">
+    </video>
   </div>
 
   <header class="topbar">

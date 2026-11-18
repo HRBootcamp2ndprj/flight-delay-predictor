@@ -14,6 +14,8 @@ models/         학습된 모델 파일 (delay.joblib, cancel.joblib)
 tests/          API 테스트
 ```
 
+상단 배경 영상(`app/static/video/sky-loop.mp4`)은 Coverr의 "Airplane flying through the clouds"를 반복 재생용으로 이어 붙이고 1280px로 압축한 것입니다. Coverr 라이선스로 출처 표기 없이 사용할 수 있습니다.
+
 ## 실행
 
 ```bash

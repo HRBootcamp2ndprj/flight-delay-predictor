@@ -401,4 +401,7 @@ async function init() {
   renderRecent();
 }
 
+// 움직임 줄이기 설정이면 재생하지 않고 poster 이미지만 보여준다
+if (!matchMedia("(prefers-reduced-motion: reduce)").matches) $("sky-video").play().catch(() => {});
+
 init();
