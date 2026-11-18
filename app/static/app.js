@@ -360,7 +360,7 @@ function renderHourlyChart(el, kind, hours, selectedHour) {
   svg += "</svg>";
   el.innerHTML = svg;
   const minLabel = el.querySelector(".lbl.sub");
-  if (minLabel) liftIntoBadge(minLabel, bars, [...el.querySelectorAll(".lbl:not(.sub)")]);
+  if (minLabel) wrapInBadge(minLabel, bars[minIdx].top, [...el.querySelectorAll(".lbl:not(.sub)")]);
 
   el.querySelectorAll(".hit").forEach((hit) => {
     const h = hours[Number(hit.dataset.i)];
@@ -379,18 +379,19 @@ function renderHourlyChart(el, kind, hours, selectedHour) {
   });
 }
 
-// 최저 라벨을 테두리 있는 배지로 감싸고, 배지가 가로로 걸치는 막대와 다른 라벨보다 위로 올린다
-function liftIntoBadge(text, bars, others) {
+// 최저 라벨을 불투명한 배지로 감싸 최저 막대 바로 위에 붙인다. 옆 막대는 배지가 덮고,
+// 선택 시각의 값 라벨과 겹칠 때만 그 위로 올린다
+function wrapInBadge(text, barTop, others) {
   const padX = 6, padY = 3, gap = 4;
   const box = text.getBBox();
   const left = box.x - padX, right = box.x + box.width + padX;
-  const spans = (x0, x1) => x1 > left && x0 < right;
-  const tops = [
-    ...bars.filter((b) => spans(b.x0, b.x1)).map((b) => b.top),
-    ...others.map((t) => t.getBBox()).filter((o) => spans(o.x, o.x + o.width)).map((o) => o.y),
-  ];
   const height = box.height + padY * 2;
-  const rectY = Math.max(0, Math.min(...tops) - gap - height);
+  let rectY = barTop - gap - height;
+  for (const o of others.map((t) => t.getBBox())) {
+    const crosses = o.x < right && o.x + o.width > left && o.y < rectY + height && o.y + o.height > rectY;
+    if (crosses) rectY = o.y - gap - height;
+  }
+  rectY = Math.max(0, rectY);
   text.setAttribute("y", Number(text.getAttribute("y")) + (rectY + padY - box.y));
   const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
   Object.entries({ class: "badge", x: left, y: rectY, width: right - left, height, rx: height / 2 }).forEach(([k, v]) => rect.setAttribute(k, v));
