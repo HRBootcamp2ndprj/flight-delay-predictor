@@ -146,6 +146,8 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
 
 /* ───────── Search form ───────── */
 .search {
+  /* backdrop-filter가 폼을 별도 쌓임 맥락으로 만들어 목록의 z-index가 폼 밖에 닿지 않으므로, 폼 자체를 칩·결과보다 위에 둔다 */
+  position: relative; z-index: 2;
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 2.5fr) minmax(0, .9fr) minmax(0, .8fr) auto;
   gap: 14px; align-items: start;
