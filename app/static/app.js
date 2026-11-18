@@ -379,8 +379,7 @@ function renderHourlyChart(el, kind, hours, selectedHour) {
   });
 }
 
-// 최저 라벨을 불투명한 배지로 감싸 최저 막대 바로 위에 붙인다. 옆 막대는 배지가 덮고,
-// 선택 시각의 값 라벨과 겹칠 때만 그 위로 올린다
+// 배지는 불투명해서 옆 막대를 덮어도 되지만, 값 라벨과 겹치면 둘 다 못 읽으므로 그때만 올린다
 function wrapInBadge(text, barTop, others) {
   const padX = 6, padY = 3, gap = 4;
   const box = text.getBBox();
@@ -436,7 +435,6 @@ async function init() {
   renderRecent();
 }
 
-// 움직임 줄이기 설정이면 재생하지 않고 poster 이미지만 보여준다
 if (!matchMedia("(prefers-reduced-motion: reduce)").matches) $("sky-video").play().catch(() => {});
 
 init();
