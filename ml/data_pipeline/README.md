@@ -18,6 +18,9 @@ BTS 운항 데이터와 IEM 공항 기상(METAR)을 합쳐 학습셋(`processed_
 환경변수 `AIRLINE_DATA_ROOT`에 이 폴더 경로를 넣으세요.
 지정하지 않으면 이 파일의 상위 폴더 중 `weather/station_map.csv`가 있는 곳을 찾습니다.
 
+데이터 폴더가 없어도 `service_features.py`(서비스용 피처 생성)는 저장소의 [`data/aggregates/`](../../data/aggregates/)와
+`ml/weather_download/station_map.csv`로 동작합니다.
+
 ```bash
 export AIRLINE_DATA_ROOT=/path/to/airline_delay        # Windows PowerShell: $env:AIRLINE_DATA_ROOT="C:\...\airline_delay"
 ```

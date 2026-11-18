@@ -12,10 +12,14 @@ from pathlib import Path
 
 
 
+REPO = Path(__file__).resolve().parents[2]       # flight-delay-predictor/
+
+
 def _data_root():
     """데이터 폴더 = flight_expectation/, weather/, processed_v3/ 가 있는 곳 (저장소에는 없음).
 
     1) 환경변수 AIRLINE_DATA_ROOT  2) 이 파일의 상위 폴더 중 weather/station_map.csv 가 있는 곳
+    3) 없으면 저장소 폴더 — 파이프라인은 못 돌리지만 service_features 는 저장소의 집계표로 동작
     """
     env = os.environ.get("AIRLINE_DATA_ROOT")
     if env:
@@ -23,7 +27,7 @@ def _data_root():
     for d in Path(__file__).resolve().parents:
         if (d / "weather" / "station_map.csv").is_file():
             return d
-    raise FileNotFoundError("데이터 폴더를 찾을 수 없음 — 환경변수 AIRLINE_DATA_ROOT 를 지정하세요")
+    return REPO
 
 
 ROOT = _data_root()
@@ -31,6 +35,8 @@ BTS_DIR = ROOT / "flight_expectation" / "flight_expectation" / "data" / "bts_sel
 WEATHER_DIR = ROOT / "weather"
 ASOS_DIR = WEATHER_DIR / "asos_raw"
 STATION_MAP = WEATHER_DIR / "station_map.csv"
+if not STATION_MAP.is_file():                    # 데이터 폴더가 없으면 저장소 사본 사용
+    STATION_MAP = REPO / "ml" / "weather_download" / "station_map.csv"
 
 INSPECTION = ROOT / "processed" / "inspection"   # 원본 탐색 결과 (v1에서 생성, 그대로 재사용)
 
@@ -39,6 +45,8 @@ V2_MERGED = V2 / "merged"
 PROCESSED = ROOT / "processed_v3"
 INTERIM = PROCESSED / "interim"                  # 중간 산출물 (Parquet, 재생성 가능)
 AGG = PROCESSED / "aggregates"                   # 전체 BTS로 만든 집계표 (웹 서비스 재사용)
+if not AGG.is_dir():                             # 데이터 폴더가 없으면 저장소에 커밋된 집계표 사용
+    AGG = REPO / "data" / "aggregates"
 WX_INTERIM = V2 / "interim" / "weather"         # v2 기상 특징 (year=YYYY/month=MM/batch-XX.parquet)
 FLIGHT_INTERIM = INTERIM / "flights"             # split=*/year=YYYY/month=MM/part.parquet (샘플 후)
 MERGED = PROCESSED / "merged"

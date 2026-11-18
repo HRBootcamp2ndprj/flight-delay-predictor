@@ -17,3 +17,5 @@ taf_raw/
 *.csv.gz
 *.zip
 *.ipynb_checkpoints/
+# 단, 서비스용 BTS 집계표는 커밋 (ml/data_pipeline/service_features.py 가 읽음)
+!data/aggregates/**/*.parquet
