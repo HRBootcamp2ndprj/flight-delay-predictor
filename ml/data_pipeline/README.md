@@ -54,6 +54,24 @@ python -X utf8 ml/data_pipeline/visualize_v3.py       # 발표용 차트 (화면
 | `visualize_v3.py` | 발표용 시각화 |
 | `meta/` | `feature_lists.json`, 품질·피처 선택 리포트 (최신 실행 결과) |
 
+## 서비스에서 피처 만들기 (`service_features.py`)
+
+```python
+from service_features import build_service_features, build_service_features_batch
+feats = bundle["features"]                       # 모델 파일의 피처 목록
+x = build_service_features(flight, as_of_date=today, features=feats)            # 한 편 → dict
+X = build_service_features_batch(flights, as_of_date=today, features=feats)     # 여러 편 → DataFrame (입력 순서)
+```
+
+- `features`를 넘기면 목록에 없는 단계(기체 일정 `tail_*_hist`, 작년 대비 `*_proxy_ly` 등)는 계산하지 않습니다.
+- 출발 시각만 다른 여러 편은 `build_service_features_batch`로 한 번에 넘기세요. 17편 기준 0.1~0.4초입니다
+  (한 편씩 17번 부르면 1.8~6.4초).
+- **집계표 범위:** 기준월(운항월 − 3, 예측일 월 − 3 중 이른 달)이 `data/aggregates`의 마지막 달보다 뒤면
+  - `on_stale="clamp"`(기본): 마지막 달로 내려 계산하고 경고를 냅니다. 결과의 `source_clamped=True`.
+  - `on_stale="raise"`: `StaleAggregatesError`.
+  - 결과의 `source_lag_months`(운항월 − 기준월)는 학습셋에서 항상 3입니다. 이보다 크면 집계표 갱신이 필요합니다.
+- 공항 시간대를 모르면 `CRSElapsedTime`은 NaN입니다.
+
 ## 핵심 설계
 
 - **예측 시점** = 예정 출발 UTC − 3시간. 기상은 그 이전 최신 관측만 사용 (`merge_asof` backward, 2시간 이내).
