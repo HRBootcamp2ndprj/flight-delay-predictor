@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
-from datetime import date
+from dataclasses import replace
+from datetime import date, timedelta
+from typing import Callable
 from pathlib import Path
 
 from flask import Flask, jsonify, request
@@ -12,6 +14,11 @@ APP_DIR = Path(__file__).parent
 ROOT_DIR = APP_DIR.parent
 DATA_DIR = APP_DIR / "data"
 
+# 예측 시점은 "예약 시점"이므로 오늘부터 1년 이내 출발편만 받는다 (CONTEXT.md).
+BOOKING_WINDOW_DAYS = 365
+# 시간대별 비교에서 보여줄 출발 시각 (06시~22시 정각)
+COMPARISON_HOURS = range(6, 23)
+
 
 def _load_options() -> dict:
     with open(DATA_DIR / "airlines.json", encoding="utf-8") as f:
@@ -21,7 +28,7 @@ def _load_options() -> dict:
     return {"airlines": airlines, "airports": airports}
 
 
-def _parse_request(payload: dict, options: dict) -> tuple[PredictionRequest | None, dict]:
+def _parse_request(payload: dict, options: dict, today: date) -> tuple[PredictionRequest | None, dict]:
     errors: dict[str, str] = {}
     airline_codes = {a["code"] for a in options["airlines"]}
     airport_codes = {a["code"] for a in options["airports"]}
@@ -44,6 +51,11 @@ def _parse_request(payload: dict, options: dict) -> tuple[PredictionRequest | No
         flight_date = date.fromisoformat(str(payload.get("date", "")))
     except ValueError:
         errors["date"] = "날짜는 YYYY-MM-DD 형식이어야 합니다."
+    if flight_date is not None:
+        if flight_date < today:
+            errors["date"] = "이미 지난 날짜는 예측할 수 없습니다."
+        elif flight_date > today + timedelta(days=BOOKING_WINDOW_DAYS):
+            errors["date"] = f"출발일은 오늘부터 {BOOKING_WINDOW_DAYS}일 이내여야 합니다."
 
     hour = minute = None
     try:
@@ -59,7 +71,10 @@ def _parse_request(payload: dict, options: dict) -> tuple[PredictionRequest | No
     return PredictionRequest(airline, origin, dest, flight_date, hour, minute), {}
 
 
-def create_app(predictor: Predictor | None = None) -> Flask:
+def create_app(
+    predictor: Predictor | None = None,
+    today: Callable[[], date] = date.today,
+) -> Flask:
     app = Flask(__name__, static_folder="static", static_url_path="/static")
     options = _load_options()
     app.config["PREDICTOR"] = predictor or load_predictor(ROOT_DIR / "models")
@@ -72,14 +87,36 @@ def create_app(predictor: Predictor | None = None) -> Flask:
     def get_options():
         return jsonify(options)
 
-    @app.post("/api/predict")
-    def predict():
+    def parse_or_400():
         payload = request.get_json(silent=True)
         if not isinstance(payload, dict):
-            return jsonify({"errors": {"_": "JSON 본문이 필요합니다."}}), 400
-        req, errors = _parse_request(payload, options)
+            return None, (jsonify({"errors": {"_": "JSON 본문이 필요합니다."}}), 400)
+        req, errors = _parse_request(payload, options, today())
         if errors:
-            return jsonify({"errors": errors}), 400
+            return None, (jsonify({"errors": errors}), 400)
+        return req, None
+
+    @app.post("/api/predict")
+    def predict():
+        req, error = parse_or_400()
+        if error:
+            return error
         return jsonify(app.config["PREDICTOR"].predict(req).to_dict())
+
+    @app.post("/api/predict/hourly")
+    def predict_hourly():
+        """같은 항공사·노선·날짜에서 출발 시각만 바꿔 가며 예측한다."""
+        req, error = parse_or_400()
+        if error:
+            return error
+        predictor = app.config["PREDICTOR"]
+        hours = []
+        for hour in COMPARISON_HOURS:
+            p = predictor.predict(replace(req, dep_hour=hour, dep_minute=0)).to_dict()
+            hours.append({"hour": hour, **p})
+        return jsonify({
+            "model_version": hours[0]["model_version"],
+            "hours": [{k: v for k, v in h.items() if k != "model_version"} for h in hours],
+        })
 
     return app

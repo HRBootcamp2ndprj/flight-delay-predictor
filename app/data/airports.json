@@ -1,25 +1,117 @@
 [
-  {"code": "ATL", "name": "Atlanta"},
-  {"code": "BOS", "name": "Boston"},
-  {"code": "CLT", "name": "Charlotte"},
-  {"code": "DCA", "name": "Washington Reagan"},
-  {"code": "DEN", "name": "Denver"},
-  {"code": "DFW", "name": "Dallas/Fort Worth"},
-  {"code": "DTW", "name": "Detroit"},
-  {"code": "EWR", "name": "Newark"},
-  {"code": "IAH", "name": "Houston Intercontinental"},
-  {"code": "JFK", "name": "New York JFK"},
-  {"code": "LAS", "name": "Las Vegas"},
-  {"code": "LAX", "name": "Los Angeles"},
-  {"code": "LGA", "name": "New York LaGuardia"},
-  {"code": "MCO", "name": "Orlando"},
-  {"code": "MIA", "name": "Miami"},
-  {"code": "MSP", "name": "Minneapolis"},
-  {"code": "ORD", "name": "Chicago O'Hare"},
-  {"code": "PHL", "name": "Philadelphia"},
-  {"code": "PHX", "name": "Phoenix"},
-  {"code": "SAN", "name": "San Diego"},
-  {"code": "SEA", "name": "Seattle"},
-  {"code": "SFO", "name": "San Francisco"},
-  {"code": "SLC", "name": "Salt Lake City"}
+  {
+    "code": "ATL",
+    "name": "Atlanta",
+    "name_ko": "애틀랜타"
+  },
+  {
+    "code": "BOS",
+    "name": "Boston",
+    "name_ko": "보스턴"
+  },
+  {
+    "code": "CLT",
+    "name": "Charlotte",
+    "name_ko": "샬럿"
+  },
+  {
+    "code": "DCA",
+    "name": "Washington Reagan",
+    "name_ko": "워싱턴 레이건"
+  },
+  {
+    "code": "DEN",
+    "name": "Denver",
+    "name_ko": "덴버"
+  },
+  {
+    "code": "DFW",
+    "name": "Dallas/Fort Worth",
+    "name_ko": "댈러스/포트워스"
+  },
+  {
+    "code": "DTW",
+    "name": "Detroit",
+    "name_ko": "디트로이트"
+  },
+  {
+    "code": "EWR",
+    "name": "Newark",
+    "name_ko": "뉴어크"
+  },
+  {
+    "code": "IAH",
+    "name": "Houston Intercontinental",
+    "name_ko": "휴스턴"
+  },
+  {
+    "code": "JFK",
+    "name": "New York JFK",
+    "name_ko": "뉴욕 JFK"
+  },
+  {
+    "code": "LAS",
+    "name": "Las Vegas",
+    "name_ko": "라스베이거스"
+  },
+  {
+    "code": "LAX",
+    "name": "Los Angeles",
+    "name_ko": "로스앤젤레스"
+  },
+  {
+    "code": "LGA",
+    "name": "New York LaGuardia",
+    "name_ko": "뉴욕 라과디아"
+  },
+  {
+    "code": "MCO",
+    "name": "Orlando",
+    "name_ko": "올랜도"
+  },
+  {
+    "code": "MIA",
+    "name": "Miami",
+    "name_ko": "마이애미"
+  },
+  {
+    "code": "MSP",
+    "name": "Minneapolis",
+    "name_ko": "미니애폴리스"
+  },
+  {
+    "code": "ORD",
+    "name": "Chicago O'Hare",
+    "name_ko": "시카고 오헤어"
+  },
+  {
+    "code": "PHL",
+    "name": "Philadelphia",
+    "name_ko": "필라델피아"
+  },
+  {
+    "code": "PHX",
+    "name": "Phoenix",
+    "name_ko": "피닉스"
+  },
+  {
+    "code": "SAN",
+    "name": "San Diego",
+    "name_ko": "샌디에이고"
+  },
+  {
+    "code": "SEA",
+    "name": "Seattle",
+    "name_ko": "시애틀"
+  },
+  {
+    "code": "SFO",
+    "name": "San Francisco",
+    "name_ko": "샌프란시스코"
+  },
+  {
+    "code": "SLC",
+    "name": "Salt Lake City",
+    "name_ko": "솔트레이크시티"
+  }
 ]

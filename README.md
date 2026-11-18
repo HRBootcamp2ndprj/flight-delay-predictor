@@ -26,6 +26,7 @@ pytest
 ## API
 
 - `GET /api/options` → `{ airlines: [{code, name}], airports: [{code, name}] }`
+- `POST /api/predict/hourly` 같은 요청 본문 → `{ model_version, hours: [{hour, delay_probability, cancel_probability}] }` (06~22시)
 - `POST /api/predict` 요청 본문 `{ airline, origin, dest, date: "YYYY-MM-DD", dep_time: "HH:MM" }`
   - 200 → `{ delay_probability, cancel_probability, model_version }`
   - 400 → `{ errors: { <필드>: <메시지> } }`
