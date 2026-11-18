@@ -7,7 +7,11 @@
 [ADR-0001](../docs/adr/0001-model-artifact-includes-preprocessing.md)을 따릅니다.
 
 ```python
-pipe = Pipeline([("prep", ColumnTransformer([...])), ("clf", ...)])
+pre = ColumnTransformer([
+    ("cat", OneHotEncoder(handle_unknown="ignore"), ["Reporting_Airline", "Origin", "Dest"]),
+    ...
+])
+pipe = Pipeline([("prep", pre), ("clf", ...)])
 pipe.fit(df[FEATURE_COLUMNS], df["ArrDel15"])
 joblib.dump(pipe, "models/delay.joblib")
 ```

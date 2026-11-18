@@ -19,6 +19,8 @@
 | `Origin` | str (IATA) | `JFK` |
 | `Dest` | str (IATA) | `LAX` |
 
+- 범주형 인코더는 학습 때 못 본 값(새 항공사·공항)에도 에러 없이 확률을 내야 한다. `OneHotEncoder`라면 `handle_unknown="ignore"`로 둔다. 기본값(`"error"`)이면 그런 요청에서 예측이 실패하고 사용자는 에러 메시지만 보게 된다.
+
 Pipeline이 이 중 일부만 써도 괜찮다. 다른 컬럼(예: `Distance`)이 필요하면 이 표를 먼저 고쳐야 한다. 그 컬럼은 `app/predictor.py`의 `FEATURE_COLUMNS`와 함께 고친다.
 
 ## 고려한 대안

@@ -7,6 +7,7 @@ from typing import Callable
 from pathlib import Path
 
 from flask import Flask, jsonify, request
+from werkzeug.exceptions import HTTPException
 
 from .predictor import PredictionRequest, Predictor, load_predictor
 
@@ -78,6 +79,13 @@ def create_app(
     app = Flask(__name__, static_folder="static", static_url_path="/static")
     options = _load_options()
     app.config["PREDICTOR"] = predictor or load_predictor(ROOT_DIR / "models")
+
+    @app.errorhandler(Exception)
+    def unexpected_error(e):
+        if isinstance(e, HTTPException):
+            return e
+        app.logger.exception("예측 처리 중 오류")
+        return jsonify({"errors": {"_": "예측 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요."}}), 500
 
     @app.get("/")
     def index():

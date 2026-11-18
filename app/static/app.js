@@ -198,7 +198,7 @@ $("swap").addEventListener("click", () => {
 
 async function postJSON(url, payload) {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-  return { ok: res.ok, data: await res.json() };
+  return { ok: res.ok, data: await res.json().catch(() => ({})) };
 }
 
 form.addEventListener("submit", async (e) => {
