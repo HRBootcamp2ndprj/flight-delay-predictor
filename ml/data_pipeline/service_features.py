@@ -9,10 +9,12 @@
   - tail_*_hist   : 참조일(D-364/371/357 + src 월 같은 요일)의 같은 항공사·편명·출발 공항 편 기체 일정 (tail_sameday/)
   - Distance      : route_distance (src 이하 최신 월), CRSElapsedTime: 예정 출발·도착 시각과 공항 시간대로 계산
 
-집계표 범위: src 가 집계표의 마지막 달보다 뒤면 그 달 표가 비어 피처가 0 이 된다. 그래서
-  on_stale="clamp"(기본) → src 를 집계표 마지막 달로 내리고 source_clamped=True, source_lag_months 로 표시
-  on_stale="raise"       → StaleAggregatesError
-학습셋에서는 source_lag_months 가 항상 3 이다. 값이 크면 집계표를 갱신해야 한다.
+집계표에 src 월이 없을 때 (aggregates/ 갱신 전)
+  - fallback=True(기본): src 를 1년 전 같은 관계인 M-15 로 바꾼다 (학습 때의 '3개월 앞 달' 관계 유지).
+    결과의 source_lag_months=15, source_fallback=True. M-15 도 없으면 StaleAggregatesError.
+  - fallback=False: 바로 StaleAggregatesError.
+  - *_proxy_ly 참조일이 집계표 끝을 넘어도 StaleAggregatesError (0 으로 채우지 않는다).
+학습셋에서는 source_lag_months 가 항상 3 이다.
 
 사용:
     from service_features import build_service_features, build_service_features_batch
@@ -39,10 +41,11 @@ from preprocess_flights import load_station_map, local_naive, localize  # noqa: 
 FMT = "%Y-%m-%d"
 INPUT_COLS = ("Reporting_Airline", "Flight_Number_Reporting_Airline", "Origin", "Dest", "FlightDate", "CRSDepTime",
               "CRSArrTime")
+FALLBACK_MONTHS = 12        # 대체 기준월 = 정상 기준월(M-3)에서 1년 전 → M-15
 
 
 class StaleAggregatesError(ValueError):
-    """기준월(src)이 집계표 범위를 넘음 → preprocess_flights.py 로 aggregates/ 갱신 필요."""
+    """필요한 달이 집계표 범위 밖 → preprocess_flights.py 로 aggregates/ 갱신 필요."""
 
 
 @lru_cache(maxsize=None)
@@ -51,14 +54,21 @@ def _station_map():
 
 
 @lru_cache(maxsize=1)
-def last_aggregate_month():
-    """집계표에 실적·편수가 모두 들어 있는 마지막 달 (편수 표는 그 달 말일까지 있어야 완전한 달)."""
+def aggregate_range():
+    """집계표에 실적·편수가 모두 들어 있는 (첫 달, 마지막 달, 편수 표 마지막 날)."""
     hist_last = pd.Period(pd.read_parquet(C.AGG / "monthly_outcomes_hist_carrier.parquet", columns=["ym"])["ym"].max(),
                           freq="M")
     last_day = pd.Timestamp(pd.read_parquet(C.AGG / "sched_counts_origin_sched_deps_day.parquet",
                                             columns=["FlightDate"])["FlightDate"].max())
     sched_last = last_day.to_period("M") if last_day.is_month_end else last_day.to_period("M") - 1
-    return min(hist_last, sched_last)
+    return pd.Period(C.BTS_READ_START, freq="M"), min(hist_last, sched_last), last_day
+
+
+def _has_month(p):
+    """src 월 p 로 hist 12개월 창(p-11 ~ p)과 혼잡도를 온전히 만들 수 있나.
+    (yoy 의 1년 전 달이 집계표 시작 전이면 학습셋과 같이 NaN 이므로 조건에 넣지 않는다)"""
+    first, last, _ = aggregate_range()
+    return p <= last and p - (C.HIST_WINDOW_MONTHS - 1) >= first
 
 
 @lru_cache(maxsize=64)
@@ -109,19 +119,28 @@ def _elapsed_minutes(f, sm):
     return best
 
 
-def _source_months(dates, as_of_date, on_stale):
-    """행별 기준월 src 와 집계표 범위로 내렸는지 여부."""
+def _source_months(dates, as_of_date, fallback):
+    """행별 (공개 한도 월 pub, 실제 쓸 기준월 src, 대체 여부).
+    pub = min(M-3, as_of 월-3): 예측 시점에 공개된 마지막 달 (누수 경계).
+    src = pub 이 집계표에 있으면 pub, 없으면 M-15 (pub 보다 항상 과거)."""
     cap = pd.Timestamp(as_of_date).to_period("M") - C.BTS_LAG_MONTHS
-    src = pd.Series([min(C.source_month(m), cap) for m in dates.dt.to_period("M")], index=dates.index)
-    last = last_aggregate_month()
-    stale = src > last
-    if stale.any():
-        msg = (f"기준월 {src[stale].max()} 이 집계표 마지막 달 {last} 보다 뒤입니다 — "
-               "preprocess_flights.py 로 aggregates/ 를 갱신하세요")
-        if on_stale == "raise":
-            raise StaleAggregatesError(msg)
-        warnings.warn(msg + f" (지금은 {last} 로 계산)", stacklevel=3)
-    return src.where(~stale, last), stale
+    pub = pd.Series([min(C.source_month(m), cap) for m in dates.dt.to_period("M")], index=dates.index)
+    src = pub.copy()
+    used = pd.Series(False, index=dates.index)
+    for i, p in pub.items():
+        if _has_month(p):
+            continue
+        alt = min(C.source_month(dates[i].to_period("M")) - FALLBACK_MONTHS, cap)
+        if not fallback or not _has_month(alt):
+            _, last, _ = aggregate_range()
+            raise StaleAggregatesError(f"기준월 {p} 이 집계표 범위(~{last}) 밖입니다"
+                                       + ("" if not fallback else f" (대체 기준월 {alt} 도 없음)")
+                                       + " — preprocess_flights.py 로 aggregates/ 를 갱신하세요")
+        src[i], used[i] = alt, True
+    if used.any():
+        warnings.warn(f"집계표에 기준월 {pub[used].max()} 이 없어 1년 전 같은 관계(M-15)로 계산 — "
+                      "aggregates/ 갱신 필요", stacklevel=3)
+    return pub, src, used
 
 
 def _needs(features):
@@ -135,19 +154,18 @@ def _needs(features):
                 tail=bool(fs & set(FE.TAIL_HIST_FEATURES)))
 
 
-def build_service_features_batch(flights, as_of_date, features=None, on_stale="clamp"):
+def build_service_features_batch(flights, as_of_date, features=None, fallback=True):
     """flights: dict 목록 (Reporting_Airline, Flight_Number_Reporting_Airline, Origin, Dest, FlightDate(YYYY-MM-DD),
     CRSDepTime(hhmm), CRSArrTime(hhmm)). as_of_date: 예측하는 날(이 날 기준 공개된 BTS만 사용).
     features: 만들 피처 이름 목록 (모델 파일의 features). None 이면 전부. 목록에 없는 단계는 계산하지 않는다.
-    on_stale: "clamp" | "raise" (모듈 설명 참고).
-    반환: 입력 순서대로 DataFrame — 날씨를 뺀 학습 피처 + source_max_month, source_lag_months, source_clamped."""
-    if on_stale not in ("clamp", "raise"):
-        raise ValueError("on_stale 은 'clamp' 또는 'raise'")
+    fallback: 기준월이 집계표에 없을 때 M-15 로 대체할지 (모듈 설명 참고).
+    반환: 입력 순서대로 DataFrame — 날씨를 뺀 학습 피처 + source_max_month, source_lag_months, source_fallback."""
     need = _needs(features)
     sm = _station_map()
     f = pd.DataFrame([{k: str(fl[k]) for k in INPUT_COLS} for fl in flights])
     dates = pd.to_datetime(f["FlightDate"])
-    src, clamped = _source_months(dates, as_of_date, on_stale)
+    pub, src, used = _source_months(dates, as_of_date, fallback)
+    _, _, last_day = aggregate_range()
 
     f["DayOfWeek"] = dates.dt.dayofweek + 1               # ISO: 월=1 … 일=7 (BTS DayOfWeek 와 같음)
     f["CRSElapsedTime"] = _elapsed_minutes(f, sm)
@@ -163,13 +181,17 @@ def build_service_features_batch(flights, as_of_date, features=None, on_stale="c
 
     if need["ly"]:
         lags = C.PROXY_LY_LAGS_DAYS
+        latest_ref = dates - pd.Timedelta(days=min(lags))
+        # 공개 한도(pub 월 말) 밖이면 학습 때처럼 NaN, 공개는 됐는데 집계표에 없으면 0 대신 오류
+        published = latest_ref <= pub.map(lambda p: p.end_time.normalize())
+        if (published & (latest_ref > last_day)).any():
+            raise StaleAggregatesError(f"*_proxy_ly 참조일 {latest_ref[published].max():%Y-%m-%d} 이 집계표 끝"
+                                       f"({last_day:%Y-%m-%d}) 뒤입니다 — aggregates/ 를 갱신하세요")
         lo = (dates.min() - pd.Timedelta(days=max(lags))).strftime(FMT)
-        hi = (dates.max() - pd.Timedelta(days=min(lags))).strftime(FMT)
+        hi = latest_ref.max().strftime(FMT)
         ly = FE.congestion_lag_features(f, {k: _sched(k, lo, hi) for k in FE.CONGESTION_SPECS}, lags, "proxy_ly")
-        # 작년 같은 요일 중 가장 늦은 날이 기준월 말보다 뒤면 아직 공개 전 → NaN
-        late = (dates - pd.Timedelta(days=min(lags))) > src.map(lambda p: p.end_time.normalize())
         for c in ly.columns:
-            out[c] = ly[c].where(~late)
+            out[c] = ly[c].where(published)
 
     for sp in sorted(set(src)):                          # 기준월이 같은 행끼리 (보통 하나)
         idx = src.index[src == sp]
@@ -192,9 +214,11 @@ def build_service_features_batch(flights, as_of_date, features=None, on_stale="c
             out.loc[idx, "origin_yoy_ratio"] = fs["Origin"].map(yoy).to_numpy(dtype=float)
         if need["tail"]:
             d = pd.to_datetime(fs["FlightDate"])
+            # 참조 가능한 달 = 공개 한도와 집계표 범위 안 (대체 기준월이어도 작년 같은 요일은 공개돼 있으면 쓴다)
+            limit = min(pub[idx].min(), aggregate_range()[1])
             periods = {sp} | {pd.Period(x, freq="M") for x in pd.date_range(
                 d.min() - pd.Timedelta(days=max(C.TAIL_LY_LAGS_DAYS)), d.max() - pd.Timedelta(days=min(C.TAIL_LY_LAGS_DAYS)))}
-            refs = [t for t in (_tail_month(str(p)) for p in sorted(periods) if p <= sp) if t is not None]
+            refs = [t for t in (_tail_month(str(p)) for p in sorted(periods) if p <= max(sp, limit)) if t is not None]
             if refs:
                 th = FE.tail_hist_features(fs, pd.concat(refs, ignore_index=True), sp, C.TAIL_LY_LAGS_DAYS)
                 for k in FE.TAIL_HIST_FEATURES:
@@ -202,13 +226,13 @@ def build_service_features_batch(flights, as_of_date, features=None, on_stale="c
 
     out["source_max_month"] = src.astype(str)
     out["source_lag_months"] = [(m - s).n for m, s in zip(dates.dt.to_period("M"), src)]
-    out["source_clamped"] = clamped.to_numpy()
+    out["source_fallback"] = used.to_numpy()
     return out
 
 
-def build_service_features(flight, as_of_date, features=None, on_stale="clamp"):
+def build_service_features(flight, as_of_date, features=None, fallback=True):
     """한 편. 인자는 build_service_features_batch 와 같고 반환은 dict."""
-    return build_service_features_batch([flight], as_of_date, features, on_stale).iloc[0].to_dict()
+    return build_service_features_batch([flight], as_of_date, features, fallback).iloc[0].to_dict()
 
 
 def service_feature_names():

@@ -66,10 +66,13 @@ X = build_service_features_batch(flights, as_of_date=today, features=feats)     
 - `features`를 넘기면 목록에 없는 단계(기체 일정 `tail_*_hist`, 작년 대비 `*_proxy_ly` 등)는 계산하지 않습니다.
 - 출발 시각만 다른 여러 편은 `build_service_features_batch`로 한 번에 넘기세요. 17편 기준 0.1~0.4초입니다
   (한 편씩 17번 부르면 1.8~6.4초).
-- **집계표 범위:** 기준월(운항월 − 3, 예측일 월 − 3 중 이른 달)이 `data/aggregates`의 마지막 달보다 뒤면
-  - `on_stale="clamp"`(기본): 마지막 달로 내려 계산하고 경고를 냅니다. 결과의 `source_clamped=True`.
-  - `on_stale="raise"`: `StaleAggregatesError`.
-  - 결과의 `source_lag_months`(운항월 − 기준월)는 학습셋에서 항상 3입니다. 이보다 크면 집계표 갱신이 필요합니다.
+- **집계표에 기준월이 없을 때 (갱신 전):** 기준월 = min(운항월 − 3, 예측일 월 − 3)이 `data/aggregates`에 없으면
+  - `fallback=True`(기본): 1년 전 같은 관계인 **운항월 − 15**로 계산하고 경고를 냅니다. 결과의 `source_fallback=True`,
+    `source_lag_months=15`. 학습셋의 "3개월 앞 달" 관계(계절)는 유지되고, 쓰는 데이터는 모두 예측 시점에 공개된 것입니다.
+  - 운항월 − 15도 없거나 `fallback=False`면 `StaleAggregatesError`. `*_proxy_ly` 참조일이 집계표 끝을 넘어도 같은 오류입니다.
+  - 어떤 경우에도 없는 데이터를 0편으로 채우지 않습니다. 학습셋에서는 `source_lag_months`가 항상 3입니다.
+  - 2025-04~12 테스트 5,400편 검증: 혼잡도와 실제 편수 상관 0.949~0.991 → 0.930~0.986, `hist_*_delay_rate`
+    단변량 AUC 차이 ≤ 0.013. `origin_yoy_ratio`는 두 버전 상관이 0.03으로 사실상 다른 값이 됩니다.
 - 공항 시간대를 모르면 `CRSElapsedTime`은 NaN입니다.
 
 ## 핵심 설계
