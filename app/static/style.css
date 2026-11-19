@@ -149,11 +149,19 @@ button, input { font: inherit; color: inherit; }
 main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 0 24px; }
 
 /* 첫 화면: 제목·폼·최근 조회를 화면 아래쪽에 붙이고, 위쪽은 영상에 내준다.
-   상단바와 합쳐 정확히 화면 높이라서 처음에는 스크롤이 없고, 결과는 그 아래에 이어진다.
-   폼 아래 여백은 선택창이 펼쳐질 자리의 일부이고, 모자라면 room(app.js)이 화면을 올린다 */
+   상단바와 합쳐 정확히 화면 높이라서 처음에는 스크롤이 없고, 결과는 그 아래에 이어진다 */
 .first-screen {
-  min-height: calc(100svh - 2 * var(--topbar-pad) - 40px); box-sizing: border-box; padding-bottom: 40px;
+  min-height: calc(100svh - 2 * var(--topbar-pad) - 40px); box-sizing: border-box;
   display: flex; flex-direction: column; justify-content: flex-end;
+}
+/* 폼 아래에 가장 큰 선택창(달력 291px)이 화면 안에 펼쳐질 자리를 늘 비워 두어, 선택창을 열어도 화면이 움직이지 않는다.
+   날짜 칸 아래에 필요한 공간 = 12px(달력 간격) + 291px + 12px(화면 끝 여백) = 315px, 폼 안에 이미 있는 23px 를 뺀다.
+   최근 조회는 이 자리 안에 두고, 선택창이 열리면 그 위를 덮는다 */
+.under-form { min-height: 292px; }
+@media (max-width: 1080px) { .under-form { min-height: 222px; } }  /* 날짜 줄 아래에 예측하기 버튼 줄(70px)이 있다 */
+/* 자리를 비워 두면 첫 화면이 넘치는 낮은 화면에서는 비우지 않고, 선택창을 열 때 room(app.js)이 화면을 올린다 */
+@media (max-height: 620px), (max-width: 1080px) and (max-height: 760px), (max-width: 640px) {
+  .under-form { min-height: 0; padding-bottom: 32px; }
 }
 .hero { margin: 0 0 24px; color: var(--ink-on-sky); }
 .hero-script { font-family: "Gaegu", cursive; font-size: clamp(1.6rem, 3.4vw, 2.2rem); margin: 0; color: var(--ink-on-sky-2); }
@@ -378,7 +386,6 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
   :root { --topbar-pad: 14px; }
   .topbar { padding-left: 16px; padding-right: 16px; }
   main { padding: 0 16px; }
-  .first-screen { padding-bottom: 24px; }
   /* 좁은 화면에서는 날개를 제목 오른쪽 뒤로 비키고, 제목 뒤에 아래쪽 덮개를 깐다 */
   .sky-video { object-position: 70% 30%; }
   .sky::before { background: linear-gradient(180deg, transparent 20%, color-mix(in srgb, var(--sky-1) 62%, transparent) 62%, transparent 95%); }
