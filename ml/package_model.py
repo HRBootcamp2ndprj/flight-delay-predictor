@@ -16,11 +16,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 import joblib
 
 REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
+from app.portable_model import PortableXGBPipeline  # noqa: E402
 
 
 def package(outputs: Path) -> dict:
@@ -38,6 +41,8 @@ def package(outputs: Path) -> dict:
     if model_path.read_bytes()[:7] == b"version":
         raise SystemExit(f"{model_path} 가 Git LFS 포인터입니다. 'git lfs pull' 로 실제 파일을 받으세요.")
     model = joblib.load(model_path)
+    if type(model.steps[-1][1]).__name__ == "XGBClassifier":
+        model = PortableXGBPipeline(model)  # Linux·Windows 어디서 묶어도 양쪽에서 열리게
     sha = hashlib.sha256(model_path.read_bytes()).hexdigest()[:8]
     return {
         "model": model,

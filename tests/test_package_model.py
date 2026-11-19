@@ -110,3 +110,25 @@ def test_other_training_correction_is_rejected(team_outputs):
     (team_outputs / "metadata.json").write_text(json.dumps({**meta, "training_correction": "none"}))
     with pytest.raises(SystemExit, match="sample_weight"):
         package_model.package(team_outputs)
+
+
+def test_xgboost_model_is_stored_without_platform_specific_state(team_outputs, tmp_path):
+    import io
+
+    from xgboost import XGBClassifier
+
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame({"Origin": rng.choice(["ATL", "JFK", "ORD"], 300), "dep_hour_local": rng.integers(6, 23, 300)})
+    y = np.where(X["dep_hour_local"] >= 17, 1, np.where(X["Origin"] == "ORD", 2, 0))
+    pre = ColumnTransformer([("cats", OrdinalEncoder(), ["Origin"]), ("nums", "passthrough", ["dep_hour_local"])])
+    pipe = Pipeline([("pre", pre), ("model", XGBClassifier(n_estimators=10))]).fit(X, y)
+    joblib.dump(pipe, team_outputs / "models" / "no_weather.joblib")
+
+    buf = io.BytesIO()
+    joblib.dump(package_model.package(team_outputs), buf)
+    # XGBoost 의 기본 피클은 OS 마다 형식이 다른 rng_state 를 담아 Linux 에서 묶은 모델이 Windows 에서 안 열렸다
+    assert b"rng_state" not in buf.getvalue()
+    buf.seek(0)
+    restored = joblib.load(buf)["model"]
+    assert list(restored.classes_) == [0, 1, 2]
+    assert np.array_equal(restored.predict_proba(X), pipe.predict_proba(X))
