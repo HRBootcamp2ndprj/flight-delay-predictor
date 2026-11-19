@@ -49,6 +49,46 @@ $("theme-toggle").addEventListener("click", () => {
   try { localStorage.setItem("theme", root.dataset.theme); } catch {}
 });
 
+// ───────── 아래로 펼치는 패널의 자리 ─────────
+
+// 선택창은 모두 칸 아래로 펼친다. 화면 아래로 넘치면 넘치는 만큼 화면을 올리고, 페이지 끝이 모자라면
+// 끝에 그만큼 자리를 덧댄다. 패널이 모두 닫히면 덧댄 자리를 걷고, 결과가 없을 때는 처음 화면으로 돌아간다.
+// 스크롤바는 html 의 scrollbar-gutter 로 자리를 늘 비워 두어, 자리가 생기고 걷힐 때 화면 폭이 바뀌지 않는다
+const room = {
+  open: new Set(),
+  extra: 0,
+  releasing: 0,
+  show(panel) {
+    clearTimeout(this.releasing);
+    this.open.add(panel);
+    const EDGE = 12;
+    const bottom = panel.getBoundingClientRect().bottom + EDGE;
+    const lift = Math.ceil(bottom - innerHeight);
+    if (lift <= 0) return;
+    // 펼친 패널도 문서 높이(scrollHeight)를 늘리므로, 패널을 뺀 본문 끝(body.offsetHeight)과 비교한다
+    const short = Math.ceil(bottom + scrollY - document.body.offsetHeight);
+    if (short > 0) {
+      this.extra += short;
+      document.body.style.paddingBottom = `${this.extra}px`;
+    }
+    scrollBy({ top: lift, behavior: "smooth" });
+  },
+  // 다른 칸으로 바로 옮겨 가면 이 패널이 닫히고 곧바로 다음 패널이 열린다. 잠깐 기다려
+  // 다음 패널이 열리면 처음 화면으로 돌아가지 않고 덧댄 자리도 그대로 둔다
+  hide(panel) {
+    this.open.delete(panel);
+    clearTimeout(this.releasing);
+    this.releasing = setTimeout(() => {
+      if (this.open.size || !this.extra) return;
+      const release = () => { if (!this.open.size) { this.extra = 0; document.body.style.paddingBottom = ""; } };
+      if (!$("result").hidden) return release();
+      scrollTo({ top: 0, behavior: "smooth" });
+      addEventListener("scrollend", release, { once: true });
+      setTimeout(release, 800);  // scrollend 를 지원하지 않는 브라우저
+    }, 100);
+  },
+};
+
 // ───────── 콤보박스 (목록 드롭다운 + 검색): 항공사, 출발지, 도착지 ─────────
 
 class Combo {
@@ -118,26 +158,16 @@ class Combo {
     this.active = this.matches.findIndex((a) => a.code === this.value);
     if (this.active < 0 && q.trim()) this.active = 0;
     this.render();
+    const wasHidden = this.list.hidden;
     this.list.hidden = false;
     this.root.dataset.open = "";
     this.input.setAttribute("aria-expanded", "true");
-    this.place();
     this.scrollActive();
-  }
-
-  // 목록이 화면 밖으로 나가면 페이지가 길어져 스크롤바가 생겼다 사라지며 화면이 깜빡인다.
-  // 아래 공간이 모자라고 위가 더 넓으면 위로 펼치고, 펼친 쪽의 남은 공간만큼만 높이를 쓴다
-  place() {
-    const MAX = 290, GAP = 6, EDGE = 8, ENOUGH = 200;
-    const box = this.root.getBoundingClientRect();
-    const viewport = window.visualViewport?.height ?? innerHeight;
-    const below = viewport - box.bottom - GAP - EDGE, above = box.top - GAP - EDGE;
-    const up = below < ENOUGH && above > below;
-    this.list.classList.toggle("up", up);
-    this.list.style.maxHeight = `${Math.max(0, Math.min(MAX, up ? above : below))}px`;
+    if (wasHidden) room.show(this.list);
   }
 
   close() {
+    if (!this.list.hidden) room.hide(this.list);
     this.list.hidden = true;
     delete this.root.dataset.open;
     this.input.setAttribute("aria-expanded", "false");
@@ -161,7 +191,7 @@ class Combo {
 
   scrollActive() {
     const el = this.list.querySelector('[aria-selected="true"]');
-    if (el) el.scrollIntoView({ block: "nearest" });
+    if (el) this.list.scrollTop = el.offsetTop - (this.list.clientHeight - el.offsetHeight) / 2;
   }
 
   onKey(e) {
@@ -210,9 +240,140 @@ function search(items, q) {
 }
 
 let airlineCombo, originCombo, destCombo;
-addEventListener("resize", () => {
-  for (const combo of [airlineCombo, originCombo, destCombo]) if (combo && !combo.list.hidden) combo.place();
-});
+
+// ───────── 출발 예정일: 달력 (Air Datepicker) ─────────
+
+// 폼 값은 숨은 칸에 "YYYY-MM-DD" 로 두고, 보이는 칸에는 "2026. 12. 03 (목)" 으로 보여 준다
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+const MONTHS = [...Array(12)].map((_, i) => `${i + 1}월`);
+const KO_LOCALE = { days: WEEKDAYS.map((d) => `${d}요일`), daysShort: WEEKDAYS, daysMin: WEEKDAYS, months: MONTHS, monthsShort: MONTHS,
+  today: "오늘", clear: "지우기", dateFormat: "yyyy-MM-dd", timeFormat: "HH:mm", firstDay: 0 };
+const pad2 = (n) => String(n).padStart(2, "0");
+// "YYYY-MM-DD" 를 그대로 Date 에 넣으면 UTC 자정이 되어 미국 시간대에서는 하루 앞 날짜가 된다
+const localDate = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
+
+class DateField {
+  constructor(control, { min, max, note }) {
+    this.hidden = control.querySelector('input[type="hidden"]');
+    const input = control.querySelector('input[type="text"]');
+    this.picker = new AirDatepicker(input, {
+      locale: KO_LOCALE, minDate: localDate(min), maxDate: localDate(max), autoClose: true, position: "bottom left",
+      dateFormat: (d) => `${d.getFullYear()}. ${pad2(d.getMonth() + 1)}. ${pad2(d.getDate())} (${WEEKDAYS[d.getDay()]})`,
+      altField: this.hidden, altFieldDateFormat: "yyyy-MM-dd",
+      navTitles: { days: (dp) => `${dp.viewDate.getFullYear()}년 ${dp.viewDate.getMonth() + 1}월` },
+      // 펼침 애니메이션 중에는 제자리보다 아래에 있어서, 다 펼친 뒤에 자리를 잰다
+      onShow: (done) => { if (done) room.show(this.picker.$datepicker); else this.addNote(note); },
+      onHide: (done) => { if (!done) room.hide(this.picker.$datepicker); },
+    });
+    control.querySelector(".chev").addEventListener("mousedown", (e) => { e.preventDefault(); input.focus(); this.picker.show(); });
+  }
+
+  // 고를 수 없는 날이 왜 막혔는지 달력 안에서 알려 준다. 달력 내용은 처음 펼칠 때 만들어진다
+  addNote(note) {
+    const cal = this.picker.$datepicker;
+    if (note && !cal.querySelector(".adp-note")) cal.insertAdjacentHTML("beforeend", `<p class="adp-note">${escapeHTML(note)}</p>`);
+  }
+
+  get value() { return this.hidden.value; }
+  // 달력이 숨은 칸을 늦게 채우므로, 바로 이어서 예측을 보내도 맞는 날짜가 가도록 직접 넣는다
+  set value(iso) {
+    this.hidden.value = iso;
+    this.picker.selectDate(localDate(iso), { silent: true });
+    this.picker.setViewDate(localDate(iso));
+  }
+}
+
+// ───────── 출발·도착 시각: 오전/오후 · 시 · 분 세 칸 드롭다운 ─────────
+
+// 폼 값은 숨은 칸에 24시간 "HH:MM" 으로 두고, 보이는 칸에는 "오전 09:30" 으로 보여 준다.
+// 세 칸에서 하나씩 고르거나, 보이는 칸에 "14:30", "오후 2:30", "1430" 처럼 직접 입력한다
+const MINUTE_STEP = 5;
+const PERIODS = ["오전", "오후"];
+const to12 = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return { period: PERIODS[+(h >= 12)], hour: h % 12 || 12, minute: m }; };
+const to24 = ({ period, hour, minute }) => `${pad2((hour % 12) + (period === "오후" ? 12 : 0))}:${pad2(minute)}`;
+const showTime = (hhmm) => { const t = to12(hhmm); return `${t.period} ${pad2(t.hour)}:${pad2(t.minute)}`; };
+
+function parseTime(text) {
+  const s = String(text).trim();
+  const period = /오후|pm/i.test(s) ? "오후" : /오전|am/i.test(s) ? "오전" : null;
+  const m = s.replace(/오전|오후|am|pm/gi, "").trim().match(/^(\d{1,2})(?::?(\d{2}))?$/);
+  if (!m) return null;
+  const hour = Number(m[1]), minute = Number(m[2] ?? 0);
+  if (minute > 59 || hour > 23 || (period && (hour < 1 || hour > 12))) return null;
+  return period ? to24({ period, hour, minute }) : `${pad2(hour)}:${pad2(minute)}`;
+}
+
+class TimeField {
+  constructor(control) {
+    this.hidden = control.querySelector('input[type="hidden"]');
+    this.input = control.querySelector('input[type="text"]');
+    this.panel = control.querySelector(".time-cols");
+    const column = (part, options) => `<ul data-part="${part}" role="listbox">${
+      options.map(([v, label]) => `<li role="option" data-v="${v}">${label}</li>`).join("")}</ul>`;
+    this.panel.innerHTML = column("period", PERIODS.map((p) => [p, p]))
+      + column("hour", [...Array(12)].map((_, i) => [i + 1, pad2(i + 1)]))
+      + column("minute", [...Array(60 / MINUTE_STEP)].map((_, i) => [i * MINUTE_STEP, pad2(i * MINUTE_STEP)]));
+
+    this.input.addEventListener("focus", () => { this.input.select(); this.open(); });
+    this.input.addEventListener("click", () => this.open());
+    // 입력하는 동안은 세 칸에 미리 보여 주기만 하고, 값은 칸을 떠날 때 정한다
+    this.input.addEventListener("input", () => { const t = parseTime(this.input.value); if (t) this.mark(true, t); });
+    this.input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); this.input.blur(); }
+    });
+    this.input.addEventListener("blur", () => this.close());
+    control.querySelector(".chev").addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      if (this.panel.hidden) this.input.focus(); else this.input.blur();
+    });
+    this.panel.addEventListener("mousedown", (e) => {
+      e.preventDefault();  // 칸의 포커스를 지켜 패널이 닫히지 않게 한다
+      const li = e.target.closest("li");
+      if (!li) return;
+      const t = to12(parseTime(this.input.value) ?? (this.value || "09:00"));
+      const part = li.parentElement.dataset.part;
+      t[part] = part === "period" ? li.dataset.v : Number(li.dataset.v);
+      this.value = to24(t);
+    });
+  }
+
+  get value() { return this.hidden.value; }
+  set value(hhmm) {
+    this.hidden.value = hhmm;
+    this.input.value = hhmm ? showTime(hhmm) : "";
+    this.mark(false);
+  }
+
+  // 값을 각 칸에 표시한다. center 면 고른 줄이 칸 가운데 오도록 스크롤한다
+  mark(center, hhmm = this.value) {
+    const t = hhmm ? to12(hhmm) : null;
+    for (const ul of this.panel.querySelectorAll("ul")) {
+      const v = t ? String(t[ul.dataset.part]) : null;
+      for (const li of ul.children) li.setAttribute("aria-selected", String(li.dataset.v === v));
+      const cur = ul.querySelector('[aria-selected="true"]');
+      if (center && cur) ul.scrollTop = cur.offsetTop - (ul.clientHeight - cur.offsetHeight) / 2;
+    }
+  }
+
+  open() {
+    if (!this.panel.hidden) return;
+    this.panel.hidden = false;
+    this.input.setAttribute("aria-expanded", "true");
+    this.mark(true);
+    room.show(this.panel);
+  }
+
+  close() {
+    if (this.panel.hidden) return;
+    this.panel.hidden = true;
+    this.input.setAttribute("aria-expanded", "false");
+    // 잘못 입력했으면 마지막으로 맞았던 값으로 되돌린다
+    this.value = parseTime(this.input.value) ?? this.value;
+    room.hide(this.panel);
+  }
+}
+
+let dateField, depTime, arrTime;
 
 // ───────── 실제 운항 노선으로 서로 거르기 ─────────
 
@@ -262,9 +423,9 @@ function fillForm(q) {
   airlineCombo.set(q.airline);
   originCombo.set(q.origin);
   destCombo.set(q.dest);
-  if (q.date) form.elements.date.value = q.date;
-  form.elements.dep_time.value = q.dep_time;
-  form.elements.arr_time.value = q.arr_time;
+  if (q.date) dateField.value = q.date;
+  depTime.value = q.dep_time;
+  arrTime.value = q.arr_time;
 }
 
 const toMinutes = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
@@ -272,9 +433,8 @@ const toHHMM = (min) => { const m = ((min % 1440) + 1440) % 1440; return `${Stri
 
 // 출발 시각만 바꾸고 예정 소요시간은 유지한다 (서버의 시간대별 비교와 같은 규칙)
 function setDeparture(hhmm) {
-  const { dep_time, arr_time } = form.elements;
-  if (arr_time.value && dep_time.value) arr_time.value = toHHMM(toMinutes(arr_time.value) + toMinutes(hhmm) - toMinutes(dep_time.value));
-  dep_time.value = hhmm;
+  if (arrTime.value && depTime.value) arrTime.value = toHHMM(toMinutes(arrTime.value) + toMinutes(hhmm) - toMinutes(depTime.value));
+  depTime.value = hhmm;
 }
 
 $("swap").addEventListener("click", () => {
@@ -507,14 +667,13 @@ async function init() {
   originCombo = combo("origin", OPTIONS.airports, "조건에 맞는 공항이 없어요");
   destCombo = combo("dest", OPTIONS.airports, "조건에 맞는 공항이 없어요");
 
-  const today = new Date();
   const { min, max, limit_note } = OPTIONS.dates;
-  form.elements.date.min = min;
-  form.elements.date.max = max;
-  const twoWeeks = localISODate(addDays(today, 14));
-  form.elements.date.value = twoWeeks <= max ? twoWeeks : max;
-  $("date-hint").textContent = limit_note ?? "";
-  form.elements.dep_time.value = "09:00";
+  dateField = new DateField($("date").closest(".control"), { min, max, note: limit_note });
+  const twoWeeks = localISODate(addDays(new Date(), 14));
+  dateField.value = twoWeeks <= max ? twoWeeks : max;
+  depTime = new TimeField($("dep_time").closest(".control"));
+  arrTime = new TimeField($("arr_time").closest(".control"));
+  depTime.value = "09:00";
 
   renderRecent();
 }

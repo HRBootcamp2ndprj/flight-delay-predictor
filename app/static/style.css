@@ -43,8 +43,7 @@
 
   /* 첫 화면 높이 배분: 날짜·시간 칸 아래에 선택창(드롭다운, 브라우저 날짜 선택창 약 320px)이 아래로 펼쳐질 자리를 남기고
      나머지를 히어로에 준다. 히어로가 줄어든 만큼 영상을 위로 올려 같은 장면(날개)이 제목 근처에 보이게 한다 */
-  --hero-h: clamp(0px, calc(100vh - 650px), 520px);
-  --hero-shift: calc(min(58vh, 560px) - var(--hero-h));
+  --topbar-pad: 18px;  /* 상단바 높이 = 위아래 여백 + 테마 버튼(40px). 첫 화면 높이 계산에 쓴다 */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -81,7 +80,7 @@
 /* ───────── Base ───────── */
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html { min-height: 100%; background: linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 30%, var(--sky-3) 60%, var(--sky-4) 100%); }
+html { min-height: 100%; scrollbar-gutter: stable; background: linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 30%, var(--sky-3) 60%, var(--sky-4) 100%); }
 body {
   margin: 0;
   min-height: 100vh;
@@ -98,7 +97,7 @@ button, input { font: inherit; color: inherit; }
    다크 모드는 영상을 어둡게 하고 별을 띄운다 */
 .sky { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
 .sky-video {
-  position: absolute; left: 0; right: 0; top: calc(-1 * var(--hero-shift)); width: 100%; height: calc(100% + var(--hero-shift));
+  position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: cover; object-position: center 30%;
 }
 .sky::before, .sky::after, .sky-veil { content: ""; position: absolute; inset: 0; z-index: 1; }
@@ -127,7 +126,7 @@ button, input { font: inherit; color: inherit; }
 .topbar {
   position: relative; z-index: 2;
   display: flex; align-items: center; justify-content: space-between;
-  max-width: 1280px; margin: 0 auto; padding: 18px 24px;
+  max-width: 1280px; margin: 0 auto; padding: var(--topbar-pad) 24px;
 }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink-on-sky); text-decoration: none; font-weight: 800; font-size: 1.35rem; letter-spacing: -0.01em; }
 .brand svg { width: 28px; height: 28px; fill: currentColor; stroke: none; transform: rotate(45deg); }
@@ -147,13 +146,16 @@ button, input { font: inherit; color: inherit; }
 }
 
 /* ───────── Layout ───────── */
-main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 8px 24px 64px; }
+main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 0 24px; }
 
-/* 첫 화면의 위쪽 대부분을 영상에 내주고, 제목은 그 아래쪽에 왼쪽 정렬로 둔다 */
-.hero {
-  min-height: var(--hero-h); margin: 0 0 28px; padding-bottom: 8px; color: var(--ink-on-sky);
+/* 첫 화면: 제목·폼·최근 조회를 화면 아래쪽에 붙이고, 위쪽은 영상에 내준다.
+   상단바와 합쳐 정확히 화면 높이라서 처음에는 스크롤이 없고, 결과는 그 아래에 이어진다.
+   폼 아래 여백은 선택창이 펼쳐질 자리의 일부이고, 모자라면 room(app.js)이 화면을 올린다 */
+.first-screen {
+  min-height: calc(100svh - 2 * var(--topbar-pad) - 40px); box-sizing: border-box; padding-bottom: 40px;
   display: flex; flex-direction: column; justify-content: flex-end;
 }
+.hero { margin: 0 0 24px; color: var(--ink-on-sky); }
 .hero-script { font-family: "Gaegu", cursive; font-size: clamp(1.6rem, 3.4vw, 2.2rem); margin: 0; color: var(--ink-on-sky-2); }
 .hero h1 { font-size: clamp(2.2rem, 5.6vw, 4rem); max-width: 14ch; line-height: 1.12; font-weight: 800; letter-spacing: -0.03em; margin: 6px 0 12px; text-shadow: 0 2px 24px rgba(40, 10, 60, .35); }
 .hero-sub { margin: 0; max-width: 34ch; color: var(--ink-on-sky-2); font-size: clamp(.95rem, 1.6vw, 1.1rem); }
@@ -161,16 +163,12 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
 @media (min-width: 900px) {
   .hero h1 { max-width: none; font-size: clamp(2.2rem, 4.2vw, 3.6rem); }
 }
-/* 중간 폭에서는 폼이 4줄로 쌓여 길어지므로 히어로를 그만큼 더 줄인다 */
-@media (min-width: 641px) and (max-width: 1080px) {
-  :root { --hero-h: clamp(0px, calc(100vh - 830px), 520px); }
-}
-/* 낮은 화면에서는 손글씨 문구와 부제를 접고 여백을 줄여, 선택창이 아래로 펼쳐질 자리를 만든다 */
+/* 낮은 화면에서는 손글씨 문구와 부제를 접고 여백을 줄여, 첫 화면에 폼이 들어가게 한다 */
 @media (min-width: 641px) and (max-height: 820px) {
   .hero-script, .hero-sub { display: none; }
 }
 @media (min-width: 641px) and (max-height: 700px) {
-  .topbar { padding-top: 10px; padding-bottom: 10px; }
+  :root { --topbar-pad: 10px; }
   .hero { margin-bottom: 16px; }
   .hero h1 { font-size: 2.4rem; margin: 0 0 4px; }
 }
@@ -209,7 +207,9 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
   flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; outline: none;
   font-weight: 600; font-size: .98rem; text-overflow: ellipsis;
 }
-.control input[type="date"], .control input[type="time"] { cursor: pointer; }
+.f-date input { cursor: pointer; }
+.control .chev { width: 16px; height: 16px; color: var(--text-muted); flex: none; transition: transform .15s; cursor: pointer; }
+.combo[data-open] .chev, .control:has([aria-expanded="true"]) .chev, .f-date .control:focus-within .chev { transform: rotate(180deg); }
 
 .route { display: grid; grid-template-columns: minmax(0, 1fr) 36px minmax(0, 1fr); gap: 6px; align-items: start; }
 .swap { position: relative; z-index: 1;
@@ -236,24 +236,19 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
 .primary:disabled { opacity: .65; cursor: progress; transform: none; }
 
 .error { color: var(--crit); font-size: .8rem; padding-left: 2px; }
-.hint { color: var(--text-muted); font-size: .78rem; line-height: 1.4; padding-left: 2px; }
-.hint:empty { display: none; }
 .error:empty { display: none; }
 .form-error { grid-column: 1 / -1; }
 
 /* Combobox */
 .combo-input { cursor: text; }
-.combo .chev { width: 16px; height: 16px; color: var(--text-muted); flex: none; transition: transform .15s; }
-.combo[data-open] .chev { transform: rotate(180deg); }
 .combo-list {
   position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20;
-  max-height: 290px; overflow-y: auto; margin: 0; padding: 6px; list-style: none;
+  max-height: calc(5 * 36px + 14px); overflow-y: auto;  /* 다섯 줄 */ margin: 0; padding: 6px; list-style: none;
   background: var(--glass-strong); border: 1px solid var(--field-border); border-radius: 12px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
   min-width: 240px;
 }
-.combo-list.up { top: auto; bottom: calc(100% + 6px); }
 .combo-list li {
   display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 4px 10px;
   padding: 8px 10px; border-radius: 8px; cursor: pointer;
@@ -267,19 +262,21 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
 .combo-list .empty:hover { background: none; }
 
 /* Chips */
-.chips { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; color: var(--ink-on-sky); }
-.chips-label { font-weight: 700; font-size: .92rem; text-shadow: 0 1px 8px rgba(40, 10, 60, .4); }
-.chip-list { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+/* 한 줄로 두고 넘치면 옆으로 넘겨 본다. 줄이 늘어 첫 화면이 길어지지 않게 */
+.chips { display: flex; align-items: center; gap: 12px; margin-top: 16px; min-width: 0; color: var(--ink-on-sky); }
+.chips-label { flex: none; font-weight: 700; font-size: .92rem; text-shadow: 0 1px 8px rgba(40, 10, 60, .4); }
+.chip-list { display: flex; gap: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.chip-list::-webkit-scrollbar { display: none; }
 .chip {
   border: 1px solid rgba(255,255,255,.5); background: rgba(255,255,255,.22); color: var(--ink-on-sky);
   padding: 7px 14px; border-radius: 999px; cursor: pointer; font-size: .88rem; font-weight: 600;
-  backdrop-filter: blur(10px); transition: background .15s;
+  backdrop-filter: blur(10px); transition: background .15s; flex: none; white-space: nowrap;
 }
 .chip:hover { background: rgba(255,255,255,.36); }
 .chip small { opacity: .8; font-weight: 500; margin-left: 4px; }
 
 /* ───────── Result ───────── */
-.result { margin-top: 28px; padding: 26px; display: grid; gap: 22px; animation: rise .35s ease-out; }
+.result { margin: 28px 0 64px; padding: 26px; display: grid; gap: 22px; animation: rise .35s ease-out; }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
 @media (prefers-reduced-motion: reduce) { .result { animation: none; } .swap { transition: none; } }
 
@@ -378,10 +375,10 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
   .note { grid-column: 1 / -1; }
 }
 @media (max-width: 640px) {
-  .topbar { padding: 14px 16px; }
-  main { padding: 0 16px 48px; }
-  :root { --hero-shift: 0px; }
-  .hero { min-height: 52vh; }
+  :root { --topbar-pad: 14px; }
+  .topbar { padding-left: 16px; padding-right: 16px; }
+  main { padding: 0 16px; }
+  .first-screen { padding-bottom: 24px; }
   /* 좁은 화면에서는 날개를 제목 오른쪽 뒤로 비키고, 제목 뒤에 아래쪽 덮개를 깐다 */
   .sky-video { object-position: 70% 30%; }
   .sky::before { background: linear-gradient(180deg, transparent 20%, color-mix(in srgb, var(--sky-1) 62%, transparent) 62%, transparent 95%); }
@@ -397,3 +394,29 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
   .big .num { font-size: 2.6rem; }
   .charts { grid-template-columns: 1fr; }
 }
+
+/* ───────── 시각 선택: 오전/오후 · 시 · 분 ───────── */
+.time-field input[type="text"] { cursor: pointer; font-variant-numeric: tabular-nums; }
+.time-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); min-width: 0; height: calc(5 * 36px + 14px); padding: 6px 0; overflow: hidden; }
+.time-cols ul { margin: 0; padding: 0 6px; list-style: none; overflow-y: auto; scrollbar-width: none; }
+.time-cols ul::-webkit-scrollbar { display: none; }
+.time-cols ul + ul { border-left: 1px solid var(--field-border); }
+.time-cols li { height: 36px; display: grid; place-items: center; border-radius: 8px; cursor: pointer; font-weight: 700; font-variant-numeric: tabular-nums; }
+.time-cols li:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.time-cols li[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+
+/* ───────── 달력 (Air Datepicker): 드롭다운과 같은 패널 모양 ───────── */
+.air-datepicker {
+  --adp-font-family: inherit; --adp-font-size: 14px; --adp-width: 300px; --adp-z-index: 30;
+  --adp-accent-color: var(--accent); --adp-color: var(--text-primary); --adp-color-secondary: var(--text-muted);
+  --adp-background-color: var(--glass-strong); --adp-border-color: var(--field-border); --adp-border-radius: 12px;
+  --adp-day-name-color: var(--accent); --adp-btn-color: var(--accent); --adp-nav-color-secondary: var(--text-muted);
+  --adp-background-color-hover: color-mix(in srgb, var(--accent) 12%, transparent);
+  --adp-cell-background-color-selected: var(--accent); --adp-cell-background-color-selected-hover: var(--accent-2);
+  --adp-color-current-date: var(--accent); --adp-color-disabled: color-mix(in srgb, var(--text-muted) 45%, transparent);
+  --adp-color-other-month: color-mix(in srgb, var(--text-muted) 60%, transparent);
+  box-shadow: var(--shadow); backdrop-filter: blur(18px);
+}
+.air-datepicker--pointer { display: none; }
+.air-datepicker-nav--title { font-weight: 700; }
+.adp-note { margin: 0; padding: 8px 12px 10px; border-top: 1px solid var(--field-border); color: var(--text-muted); font-size: .76rem; line-height: 1.45; }
