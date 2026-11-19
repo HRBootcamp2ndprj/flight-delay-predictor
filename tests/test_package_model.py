@@ -90,6 +90,14 @@ def test_packaged_model_predicts_like_the_team_pipeline(team_outputs, features_s
     assert served["model_version"].startswith("processed_v3-no_weather-")
 
 
+def test_files_side_by_side_in_one_folder(team_outputs, tmp_path):
+    flat = tmp_path / "models"
+    flat.mkdir()
+    (flat / "metadata.json").write_bytes((team_outputs / "metadata.json").read_bytes())
+    (flat / "no_weather.joblib").write_bytes((team_outputs / "models" / "no_weather.joblib").read_bytes())
+    assert package_model.package(flat)["temperature"] == TEMPERATURE
+
+
 def test_lfs_pointer_is_rejected(team_outputs):
     (team_outputs / "models" / "no_weather.joblib").write_text(
         "version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 1\n")

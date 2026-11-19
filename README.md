@@ -46,11 +46,13 @@ pytest
 
 ## 모델 붙이기
 
-`models/model.joblib`을 두고 서버를 재시작하면 더미 대신 실제 모델이 쓰입니다. 모델 팀 학습 결과(`machine` 브랜치의 `team2/outputs`)는 아래처럼 이 파일로 묶습니다. 모델 파일이 Git LFS에 있으므로 먼저 `git lfs pull`로 받습니다.
+`models/model.joblib`을 두고 서버를 재시작하면 더미 대신 실제 모델이 쓰입니다. 모델 팀 결과 중 `no_weather.joblib`과 `metadata.json` 두 파일을 `models/`에 넣고 아래를 실행하면 이 파일이 만들어집니다. 세 파일 모두 커밋되지 않습니다.
 
 ```bash
-python ml/package_model.py /path/to/team2/outputs     # → models/model.joblib
+python ml/package_model.py models     # → models/model.joblib
 ```
+
+두 파일은 `machine` 브랜치 `team2/outputs/`에 Git LFS로 있습니다. 브랜치를 꺼낼 때는 `GIT_LFS_SKIP_SMUDGE=1`로 LFS 자동 받기를 끄고 두 파일만 `git lfs pull --include`로 받으세요. 그대로 꺼내면 쓰지 않는 444MB 모델까지 받습니다.
  피처는 `ml/data_pipeline/service_features.py`(데이터 팀 `data-mgb` 브랜치)로 만들고, 다른 경로를 쓰려면 `FLIGHT_FEATURES_SRC`에 지정합니다.
 서버는 그 폴더의 `service_features.build_service_features`로 피처를 만들고, `aggregates/`와 `station_map.csv`는 데이터 팀 `config`가 가리키는 경로에서 읽습니다.
 모델 파일이 계약에 맞지 않거나 `service_features.py`를 찾지 못하면 서버가 시작하지 않고 이유를 알려 줍니다.

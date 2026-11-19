@@ -5,8 +5,11 @@
 모델 팀이 train.py 에서 ADR-0002 형식으로 바로 저장하게 되면 이 스크립트는 지운다.
 
 사용:
-    python ml/package_model.py /path/to/team2/outputs            # → models/model.joblib
+    python ml/package_model.py models                             # models/ 에 두 파일을 넣었을 때 → models/model.joblib
+    python ml/package_model.py /path/to/team2/outputs             # 모델 팀 결과 폴더 그대로
     python ml/package_model.py /path/to/team2/outputs -o out.joblib
+
+두 파일은 같은 폴더에 나란히 두거나(metadata.json, no_weather.joblib), 모델 팀 구조(metadata.json, models/no_weather.joblib)로 둔다.
 """
 from __future__ import annotations
 
@@ -28,7 +31,10 @@ def package(outputs: Path) -> dict:
     # 모델 팀은 sample_weight 로 학습해 정상편 샘플링을 이미 되돌렸다. 다른 방식이면 normal_sample_rate 를 정할 수 없다
     if meta.get("training_correction") != "sample_weight only":
         raise SystemExit(f"training_correction 이 'sample_weight only' 가 아닙니다: {meta.get('training_correction')!r}")
-    model_path = outputs / "models" / "no_weather.joblib"
+    model_path = next((p for p in (outputs / "no_weather.joblib", outputs / "models" / "no_weather.joblib") if p.exists()),
+                      None)
+    if model_path is None:
+        raise SystemExit(f"{outputs} 에 no_weather.joblib 이 없습니다 (같은 폴더나 models/ 아래).")
     if model_path.read_bytes()[:7] == b"version":
         raise SystemExit(f"{model_path} 가 Git LFS 포인터입니다. 'git lfs pull' 로 실제 파일을 받으세요.")
     model = joblib.load(model_path)
@@ -45,7 +51,7 @@ def package(outputs: Path) -> dict:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("outputs", type=Path, help="모델 팀 결과 폴더 (metadata.json, models/no_weather.joblib)")
+    p.add_argument("outputs", type=Path, help="metadata.json 과 no_weather.joblib 이 있는 폴더")
     p.add_argument("-o", "--out", type=Path, default=REPO / "models" / "model.joblib")
     args = p.parse_args()
     artifact = package(args.outputs)
