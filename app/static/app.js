@@ -121,9 +121,20 @@ class Combo {
     this.list.hidden = false;
     this.root.dataset.open = "";
     this.input.setAttribute("aria-expanded", "true");
+    this.place();
     this.scrollActive();
-    // 폼이 첫 화면 아래쪽에 있어 목록이 화면 밖으로 펼쳐지면, 목록이 다 보이도록 페이지를 올린다
-    if (this.list.getBoundingClientRect().bottom > innerHeight) this.list.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  // 목록이 화면 밖으로 나가면 페이지가 길어져 스크롤바가 생겼다 사라지며 화면이 깜빡인다.
+  // 아래 공간이 모자라고 위가 더 넓으면 위로 펼치고, 펼친 쪽의 남은 공간만큼만 높이를 쓴다
+  place() {
+    const MAX = 290, GAP = 6, EDGE = 8, ENOUGH = 200;
+    const box = this.root.getBoundingClientRect();
+    const viewport = window.visualViewport?.height ?? innerHeight;
+    const below = viewport - box.bottom - GAP - EDGE, above = box.top - GAP - EDGE;
+    const up = below < ENOUGH && above > below;
+    this.list.classList.toggle("up", up);
+    this.list.style.maxHeight = `${Math.max(0, Math.min(MAX, up ? above : below))}px`;
   }
 
   close() {
@@ -199,6 +210,9 @@ function search(items, q) {
 }
 
 let airlineCombo, originCombo, destCombo;
+addEventListener("resize", () => {
+  for (const combo of [airlineCombo, originCombo, destCombo]) if (combo && !combo.list.hidden) combo.place();
+});
 
 // ───────── 실제 운항 노선으로 서로 거르기 ─────────
 
