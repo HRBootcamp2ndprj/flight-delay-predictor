@@ -140,13 +140,10 @@ def create_app(
         req, error = parse_or_400()
         if error:
             return error
-        predictor = app.config["PREDICTOR"]
-        hours = []
-        for hour in COMPARISON_HOURS:
-            p = predictor.predict(req.with_departure(hour)).to_dict()
-            hours.append({"hour": hour, **p})
+        predictions = app.config["PREDICTOR"].predict_many([req.with_departure(h) for h in COMPARISON_HOURS])
+        hours = [{"hour": h, **p.to_dict()} for h, p in zip(COMPARISON_HOURS, predictions)]
         return jsonify({
-            "model_version": hours[0]["model_version"],
+            "model_version": predictions[0].model_version,
             "hours": [{k: v for k, v in h.items() if k != "model_version"} for h in hours],
         })
 

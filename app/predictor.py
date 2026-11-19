@@ -8,7 +8,6 @@ Flask는 이 모듈의 `Predictor` 인터페이스만 안다. `models/model.jobl
 from __future__ import annotations
 
 import importlib
-import math
 import os
 import sys
 from dataclasses import dataclass, replace
@@ -96,6 +95,9 @@ class PredictionUnavailable(ValueError):
 class Predictor(Protocol):
     def predict(self, request: PredictionRequest) -> Prediction: ...
 
+    def predict_many(self, requests: list[PredictionRequest]) -> list[Prediction]:
+        """같은 예측일(as_of)의 여러 요청을 입력 순서대로 예측한다."""
+
     def data_limit(self, today: date, until: date) -> DataLimit | None:
         """today 부터 until 사이에 예측할 수 없는 출발일이 있으면 그 경계. 없으면 None."""
 
@@ -112,6 +114,9 @@ class DummyPredictor:
 
     def data_limit(self, today: date, until: date) -> DataLimit | None:
         return None
+
+    def predict_many(self, requests: list[PredictionRequest]) -> list[Prediction]:
+        return [self.predict(r) for r in requests]
 
     def predict(self, request: PredictionRequest) -> Prediction:
         hour = request.dep_hour
@@ -176,10 +181,10 @@ class ModelPredictor:
         self.version = artifact.version
         self._limit_by_day: dict[date, DataLimit | None] = {}
 
-    def _build(self, flight: dict, as_of: date) -> dict:
+    def _build(self, flights: list[dict], as_of: date):
         try:
-            return self._features.build_service_features(flight, as_of_date=as_of.isoformat(),
-                                                         features=self._a.features)
+            return self._features.build_service_features_batch(flights, as_of_date=as_of.isoformat(),
+                                                               features=self._a.features)
         except self._features.StaleAggregatesError as e:
             raise PredictionUnavailable(str(e)) from e
 
@@ -194,26 +199,31 @@ class ModelPredictor:
         day = today
         while day <= until:
             try:
-                self._build({**PROBE_FLIGHT, "FlightDate": day.isoformat()}, today)
+                self._build([{**PROBE_FLIGHT, "FlightDate": day.isoformat()}], today)
             except PredictionUnavailable:
                 return DataLimit(day - timedelta(days=1), str(self._features.aggregate_range()[1]))
             day = (day.replace(day=1) + timedelta(days=32)).replace(day=1)
         return None
 
     def predict(self, request: PredictionRequest) -> Prediction:
+        return self.predict_many([request])[0]
+
+    def predict_many(self, requests: list[PredictionRequest]) -> list[Prediction]:
         import pandas as pd
 
-        feats = self._build(request.to_service_flight(), request.as_of)
+        feats = self._build([r.to_service_flight() for r in requests], requests[0].as_of)
         # 참조 데이터가 없는 피처(신규 노선, 기체 일정 미발견 등)는 학습셋처럼 결측으로 둔다
-        X = pd.DataFrame([{f: feats.get(f, math.nan) for f in self._a.features}], columns=self._a.features)
+        X = feats.reindex(columns=self._a.features).reset_index(drop=True)
         # 한 행을 그냥 category 로 바꾸면 어떤 값이든 코드 0이 된다. 학습 때 범주 목록으로 맞추고, 없는 값은 결측
         for col, levels in self._a.categories.items():
             X[col] = pd.Categorical(X[col].where(X[col].isin(levels)), categories=levels)
-        normal, delay, cancel = (float(p) for p in self._a.model.predict_proba(X)[0])
+        proba = self._a.model.predict_proba(X)
         # 학습셋은 정상편만 normal_sample_rate 로 뽑았으므로 정상 확률을 되돌린 뒤 다시 정규화한다
-        normal /= self._a.normal_sample_rate
-        total = normal + delay + cancel
-        return Prediction(delay / total, cancel / total, self.version)
+        predictions = []
+        for normal, delay, cancel in proba:
+            total = normal / self._a.normal_sample_rate + delay + cancel
+            predictions.append(Prediction(float(delay / total), float(cancel / total), self.version))
+        return predictions
 
 
 def _import_service_features(src_dir: Path) -> ModuleType:

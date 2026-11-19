@@ -14,6 +14,9 @@ class FixedPredictor:
     def data_limit(self, today, until):
         return self.limit
 
+    def predict_many(self, requests):
+        return [self.predict(r) for r in requests]
+
     def predict(self, request):
         self.last_request = request
         return Prediction(0.25, 0.03, "fixed")

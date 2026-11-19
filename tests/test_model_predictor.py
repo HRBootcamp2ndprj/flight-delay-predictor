@@ -19,7 +19,10 @@ BODY = {"airline": "AA", "origin": "ORD", "dest": "LAX", "date": "2024-07-04", "
 FEATURES = ["Origin", "dep_hour_local", "tail_leg_index_hist"]
 
 FAKE_SERVICE_FEATURES = '''
+import pandas as pd
+
 CALLS = []
+BATCHES = []
 
 class StaleAggregatesError(ValueError):
     pass
@@ -34,6 +37,10 @@ def build_service_features(flight, as_of_date, features=None):
     if flight["FlightDate"] >= "2025-03-01":
         raise StaleAggregatesError("기준월이 집계표 범위 밖")
     return {"Origin": flight["Origin"], "dep_hour_local": int(flight["CRSDepTime"]) // 100, "source_max_month": "2024-03"}
+
+def build_service_features_batch(flights, as_of_date, features=None):
+    BATCHES.append(len(flights))
+    return pd.DataFrame([build_service_features(f, as_of_date, features) for f in flights])
 
 def service_feature_names():
     return ["Origin", "dep_hour_local", "tail_leg_index_hist", "Distance"]
@@ -66,7 +73,8 @@ def build_from_flight(flight, as_of_date, features=None):
     return {"Origin": flight["Origin"], "dep_hour_local": 17}
 
 
-FEATURES_MODULE = SimpleNamespace(build_service_features=build_from_flight,
+FEATURES_MODULE = SimpleNamespace(build_service_features_batch=lambda flights, as_of_date, features=None:
+                                  pd.DataFrame([build_from_flight(f, as_of_date) for f in flights]),
                                   StaleAggregatesError=type("StaleAggregatesError", (ValueError,), {}),
                                   aggregate_range=lambda: ("2020-11", "2024-12", None))
 
@@ -192,3 +200,17 @@ def test_date_range_ends_before_first_month_the_data_cannot_cover(deployed):
     res = client.post("/api/predict", json={**BODY, "date": "2025-03-01"})
     assert res.status_code == 400
     assert "2025년 2월 28일 이후" in res.get_json()["errors"]["date"]
+
+
+def test_hourly_builds_all_departures_in_one_call_and_matches_single(deployed):
+    client = client_for(*deployed)
+    client.get("/api/options")  # 그날의 예측 가능 기간 확인(달마다 한 편)은 먼저 끝내 둔다
+    import service_features
+    before = len(service_features.BATCHES)
+    hourly = client.post("/api/predict/hourly", json=BODY).get_json()["hours"]
+    assert service_features.BATCHES[before:] == [17]
+    for h in (6, 17, 22):
+        single = client.post("/api/predict", json={**BODY, "dep_time": f"{h:02d}:00"}).get_json()
+        row = next(x for x in hourly if x["hour"] == h)
+        assert (row["delay_probability"], row["cancel_probability"]) == \
+               (single["delay_probability"], single["cancel_probability"])
