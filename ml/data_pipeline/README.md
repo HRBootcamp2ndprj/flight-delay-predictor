@@ -82,5 +82,5 @@ X = build_service_features_batch(flights, as_of_date=today, features=feats)     
 - **BTS 공개 지연**: 운항월 M의 피처는 M−3월까지 공개된 BTS만 사용 (과거 실적·혼잡도·기체 일정).
 - **분할**: train 2022–23 / validation 2024 / test 2025. train은 정상편 20%만 샘플 → 학습 시 `sample_weight` 사용.
 
-> 저장소의 CONTEXT.md·ADR-0001은 예약 시점 예측과 `ArrDel15` 기준을 가정합니다.
-> 이 파이프라인은 출발 3시간 전 예측과 출발 지연 기준이므로 팀 합의가 필요합니다.
+> 저장소의 [CONTEXT.md](../../CONTEXT.md)와 [ADR-0002](../../docs/adr/0002-service-features-and-model-artifact.md)는 이 파이프라인의 정의(출발 3시간 전, 출발 지연 기준, 3-class)를 따릅니다.
+> 서비스에 붙일 모델 파일 형식은 ADR-0002를 보세요.
