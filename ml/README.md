@@ -24,6 +24,8 @@
 
 ## 모델 파일
 
+지금은 `team2/scripts/train.py`가 저장한 `outputs/models/no_weather.joblib`과 `outputs/metadata.json`을 `ml/package_model.py`로 묶어 `models/model.joblib`을 만든다. 아래처럼 학습 코드에서 바로 저장하면 이 단계가 없어진다.
+
 산출물은 `models/model.joblib` 하나다. 계약은 [ADR-0002](../docs/adr/0002-service-features-and-model-artifact.md)를 따른다.
 
 ```python
@@ -38,6 +40,7 @@ joblib.dump({
     "features": feats,
     "categories": {c: list(train[c].cat.categories) for c in cats},
     "normal_sample_rate": 1.0,                   # sample_weight 없이 학습했다면 0.2
+    "temperature": t,                            # 검증셋 온도 보정값 (선택, 없으면 1.0)
     "version": "xgb-no_weather-2026-11-18",
 }, "models/model.joblib")
 ```

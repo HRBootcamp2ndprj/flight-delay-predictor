@@ -214,3 +214,16 @@ def test_hourly_builds_all_departures_in_one_call_and_matches_single(deployed):
         row = next(x for x in hourly if x["hour"] == h)
         assert (row["delay_probability"], row["cancel_probability"]) == \
                (single["delay_probability"], single["cancel_probability"])
+
+
+def test_temperature_scales_probabilities_before_reporting():
+    p = ModelPredictor(artifact(FixedModel([0.7, 0.2, 0.1]), temperature=2.0), FEATURES_MODULE).predict(request())
+    scaled = np.sqrt([0.7, 0.2, 0.1])  # softmax(log p / 2) = sqrt(p) 정규화
+    scaled /= scaled.sum()
+    assert p.delay_probability == pytest.approx(scaled[1])
+    assert p.cancel_probability == pytest.approx(scaled[2])
+
+
+def test_artifact_rejects_non_positive_temperature():
+    with pytest.raises(ValueError, match="temperature"):
+        artifact(FixedModel([1, 0, 0]), temperature=0)

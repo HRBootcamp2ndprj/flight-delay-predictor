@@ -146,6 +146,7 @@ class ModelArtifact:
     categories: dict[str, list[str]]
     normal_sample_rate: float
     version: str
+    temperature: float = 1.0
 
     REQUIRED = ("model", "features", "categories", "normal_sample_rate", "version")
 
@@ -165,8 +166,11 @@ class ModelArtifact:
         unknown_cats = set(raw["categories"]) - set(raw["features"])
         if unknown_cats:
             raise ValueError(f"categories 에 features 에 없는 컬럼이 있습니다: {sorted(unknown_cats)}")
+        temperature = float(raw.get("temperature", 1.0))
+        if not temperature > 0:
+            raise ValueError(f"temperature 는 0보다 커야 합니다: {temperature}")
         return cls(raw["model"], list(raw["features"]), {k: list(v) for k, v in raw["categories"].items()},
-                   rate, str(raw["version"]))
+                   rate, str(raw["version"]), temperature)
 
 
 # 예측 가능 기간을 알아낼 때 쓰는 아무 항공편. 데이터 팀의 기준월 판단은 노선과 무관하다
@@ -217,13 +221,24 @@ class ModelPredictor:
         # 한 행을 그냥 category 로 바꾸면 어떤 값이든 코드 0이 된다. 학습 때 범주 목록으로 맞추고, 없는 값은 결측
         for col, levels in self._a.categories.items():
             X[col] = pd.Categorical(X[col].where(X[col].isin(levels)), categories=levels)
-        proba = self._a.model.predict_proba(X)
+        proba = _apply_temperature(self._a.model.predict_proba(X), self._a.temperature)
         # 학습셋은 정상편만 normal_sample_rate 로 뽑았으므로 정상 확률을 되돌린 뒤 다시 정규화한다
         predictions = []
         for normal, delay, cancel in proba:
             total = normal / self._a.normal_sample_rate + delay + cancel
             predictions.append(Prediction(float(delay / total), float(cancel / total), self.version))
         return predictions
+
+
+def _apply_temperature(proba, temperature: float):
+    """검증셋에서 맞춘 온도 보정: softmax(log p / T). T=1 이면 그대로."""
+    import numpy as np
+
+    if temperature == 1.0:
+        return proba
+    logits = np.log(np.clip(np.asarray(proba, dtype=float), 1e-12, 1)) / temperature
+    scaled = np.exp(logits - logits.max(axis=1, keepdims=True))
+    return scaled / scaled.sum(axis=1, keepdims=True)
 
 
 def _import_service_features(src_dir: Path) -> ModuleType:

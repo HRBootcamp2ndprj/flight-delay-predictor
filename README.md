@@ -46,7 +46,12 @@ pytest
 
 ## 모델 붙이기
 
-`models/model.joblib`을 두고 서버를 재시작하면 더미 대신 실제 모델이 쓰입니다. 피처는 `ml/data_pipeline/service_features.py`(데이터 팀 `data-mgb` 브랜치)로 만들고, 다른 경로를 쓰려면 `FLIGHT_FEATURES_SRC`에 지정합니다.
+`models/model.joblib`을 두고 서버를 재시작하면 더미 대신 실제 모델이 쓰입니다. 모델 팀 학습 결과(`machine` 브랜치의 `team2/outputs`)는 아래처럼 이 파일로 묶습니다. 모델 파일이 Git LFS에 있으므로 먼저 `git lfs pull`로 받습니다.
+
+```bash
+python ml/package_model.py /path/to/team2/outputs     # → models/model.joblib
+```
+ 피처는 `ml/data_pipeline/service_features.py`(데이터 팀 `data-mgb` 브랜치)로 만들고, 다른 경로를 쓰려면 `FLIGHT_FEATURES_SRC`에 지정합니다.
 서버는 그 폴더의 `service_features.build_service_features`로 피처를 만들고, `aggregates/`와 `station_map.csv`는 데이터 팀 `config`가 가리키는 경로에서 읽습니다.
 모델 파일이 계약에 맞지 않거나 `service_features.py`를 찾지 못하면 서버가 시작하지 않고 이유를 알려 줍니다.
 

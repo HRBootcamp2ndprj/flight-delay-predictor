@@ -22,6 +22,9 @@ ADR-0001은 모델이 BTS 원본 8개 컬럼을 받고 전처리를 통째로 �
 | `categories` | 범주형 컬럼별 학습 때의 범주 목록 |
 | `normal_sample_rate` | 학습에 쓴 정상편 샘플링 비율. `sample_weight`로 학습했으면 1.0 |
 | `version` | 화면과 API에 나가는 모델 이름 |
+| `temperature` (선택) | 검증셋에서 맞춘 온도 보정값. 서버는 `softmax(log p / T)`를 먼저 적용한다. 없으면 1.0 |
+
+모델 팀 학습 결과(`no_weather.joblib` Pipeline + `metadata.json`)는 `ml/package_model.py`로 이 형식에 묶는다. 범주형은 모델 Pipeline의 인코더가 처리하므로 `categories`는 비워 둔다. 모델 팀이 `train.py`에서 이 형식으로 바로 저장하게 되면 스크립트는 지운다.
 
 **범주형 처리.** 서버는 범주형 컬럼을 `categories`의 목록으로 `pandas.Categorical`을 만들어 넘기고, 목록에 없는 값은 결측으로 둔다. 한 행짜리 DataFrame을 그냥 `category`로 바꾸면 어떤 값이든 코드 0이 된다. XGBoost 2.1.4에서 재현했을 때 JFK와 ORD가 모두 ATL로 취급되어 에러 없이 틀린 확률이 나왔다. 3.4.1은 범주를 모델에 저장해 맞춰 주지만, 이 방식은 버전과 상관없이 맞다.
 
