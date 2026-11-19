@@ -8,7 +8,7 @@ BTS 항공 운항 데이터로 미국 국내선의 **지연**(출발 15분 이�
 ```
 app/            Flask 서버 + 프론트 (static/index.html, app.js, style.css, video/)
   predictor.py  예측기. models/model.joblib 이 없으면 더미 예측기 사용
-  data/         드롭다운용 항공사·공항 목록 (임시값. 학습 데이터 범위로 바꿀 예정)
+  data/         드롭다운 목록 airlines.json·airports.json (ml/build_options.py 가 생성), 이름표 names.json
 ml/             모델 담당 안내
   data_pipeline/  데이터 팀 파이프라인. service_features.py 가 서비스 피처를 만든다
   weather_download/  공항 기상 다운로드, station_map.csv (공항 시간대)
@@ -22,6 +22,12 @@ docs/design/    화면 스크린샷
 서비스 피처에 필요한 코드와 데이터(`ml/data_pipeline/`, `data/aggregates/`, `station_map.csv`)는 저장소에 있습니다. 실제 모델로 서버를 띄우려면 `models/model.joblib`([ADR-0002](docs/adr/0002-service-features-and-model-artifact.md) 형식)만 받으면 됩니다. 학습셋과 BTS 원본은 용량 때문에 저장소 밖에 있습니다([ml/data_pipeline/README.md](ml/data_pipeline/README.md)).
 
 집계표는 새 BTS 달이 공개될 때마다 데이터 팀이 `preprocess_flights.py`로 갱신합니다. 갱신이 밀리면 예측 가능한 출발일이 줄어들고, 화면이 그 이유를 보여 줍니다.
+
+드롭다운의 항공사·공항은 집계표에서 최근 12개월 운항 기록이 있는 곳을 운항이 많은 순으로 담습니다. 집계표를 갱신한 뒤 아래를 실행해 목록도 갱신합니다. 한글 이름은 `app/data/names.json`(항공사 전부, 상위 공항 100곳)에서 붙이고, 나머지 공항은 영문 이름만 씁니다. 새 항공사가 생기면 스크립트가 이름표에 추가하라고 알려 줍니다.
+
+```bash
+python ml/build_options.py
+```
 
 상단 배경 영상(`app/static/video/sky-loop.mp4`)은 Coverr의 "Airplane flying through the clouds"를 반복 재생용으로 이어 붙이고 1280px로 압축한 것입니다. Coverr 라이선스로 출처 표기 없이 사용할 수 있습니다.
 

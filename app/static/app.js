@@ -22,6 +22,8 @@ function localISODate(d) {
 }
 function addDays(d, n) { const c = new Date(d); c.setDate(c.getDate() + n); return c; }
 function pct(p) { return (p * 100).toFixed(1); }
+// 상위 공항과 항공사만 한글 이름이 있다. 나머지는 영문 이름을 쓴다
+const displayName = (a) => a.name_ko ?? a.name;
 function escapeHTML(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
 
 const storage = {
@@ -79,7 +81,7 @@ class Combo {
 
   label(code) {
     const a = this.byCode.get(code);
-    return a ? `${a.code} ${a.name_ko}` : "";
+    return a ? `${a.code} ${displayName(a)}` : "";
   }
 
   get value() { return this.hidden.value; }
@@ -94,7 +96,7 @@ class Combo {
     if (!q || q === this.label(this.value).toLowerCase()) return this.items;
     const starts = [], contains = [];
     for (const a of this.items) {
-      const hay = [a.code, a.name, a.name_ko].map((s) => s.toLowerCase());
+      const hay = [a.code, a.name, a.name_ko ?? ""].map((s) => s.toLowerCase());
       if (hay[0].startsWith(q)) starts.push(a);
       else if (hay.some((h) => h.includes(q))) contains.push(a);
     }
@@ -129,7 +131,7 @@ class Combo {
       <li id="${id}-${a.code}" role="option" data-code="${a.code}"
           aria-selected="${i === this.active}" class="${a.code === this.value ? "current" : ""}">
         <span class="code">${a.code}</span>
-        <span class="nm">${escapeHTML(a.name_ko)}<small>${escapeHTML(a.name)}</small></span>
+        <span class="nm">${escapeHTML(displayName(a))}${a.name_ko ? `<small>${escapeHTML(a.name)}</small>` : ""}</span>
       </li>`).join("");
     if (this.active >= 0) this.input.setAttribute("aria-activedescendant", `${id}-${this.matches[this.active].code}`);
   }
@@ -272,9 +274,9 @@ function renderMetric(kind, p) {
 function renderResult(q, single, hourly) {
   const al = OPTIONS.airlines.find((a) => a.code === q.airline);
   $("r-origin").textContent = q.origin;
-  $("r-origin-name").textContent = byCode[q.origin]?.name_ko ?? "";
+  $("r-origin-name").textContent = byCode[q.origin] ? displayName(byCode[q.origin]) : "";
   $("r-dest").textContent = q.dest;
-  $("r-dest-name").textContent = byCode[q.dest]?.name_ko ?? "";
+  $("r-dest-name").textContent = byCode[q.dest] ? displayName(byCode[q.dest]) : "";
   $("r-airline").textContent = al ? `${al.name_ko} (${al.code})` : q.airline;
   const [y, m, d] = q.date.split("-").map(Number);
   $("r-date").textContent = new Intl.DateTimeFormat("ko-KR", { dateStyle: "full" }).format(new Date(y, m - 1, d));
