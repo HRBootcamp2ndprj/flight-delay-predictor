@@ -227,3 +227,10 @@ def test_temperature_scales_probabilities_before_reporting():
 def test_artifact_rejects_non_positive_temperature():
     with pytest.raises(ValueError, match="temperature"):
         artifact(FixedModel([1, 0, 0]), temperature=0)
+
+
+def test_unreadable_model_file_says_to_match_library_versions(deployed):
+    models, src = deployed
+    (models / "model.joblib").write_bytes(b"not a pickle")
+    with pytest.raises(RuntimeError, match="requirements.txt"):
+        load_predictor(models, features_src=str(src))

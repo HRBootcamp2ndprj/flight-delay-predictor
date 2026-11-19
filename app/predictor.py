@@ -256,7 +256,12 @@ def load_predictor(models_dir: Path, features_src: str | None = None) -> Predict
     import joblib
 
     module = _import_service_features(Path(features_src or os.environ.get(FEATURES_SRC_ENV) or DEFAULT_FEATURES_SRC))
-    artifact = ModelArtifact.parse(joblib.load(model_path))
+    try:
+        raw = joblib.load(model_path)
+    except Exception as e:
+        raise RuntimeError(f"{model_path} 를 열 수 없습니다. 모델을 저장한 라이브러리 버전과 다를 수 있으니 "
+                           f"'pip install -r requirements.txt' 로 xgboost·scikit-learn 버전을 맞추세요. ({e})") from e
+    artifact = ModelArtifact.parse(raw)
     unknown = set(artifact.features) - set(module.service_feature_names())
     if unknown:
         raise RuntimeError(f"서비스에서 만들 수 없는 피처가 모델에 있습니다: {sorted(unknown)}")
