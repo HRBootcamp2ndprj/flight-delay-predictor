@@ -46,7 +46,7 @@ pytest
 
 ## 모델 붙이기
 
-`models/model.joblib`을 두고 서버를 재시작하면 더미 대신 실제 모델이 쓰입니다. 모델 팀 결과 중 `no_weather.joblib`과 `metadata.json` 두 파일을 `models/`에 넣고 아래를 실행하면 이 파일이 만들어집니다. 세 파일 모두 커밋되지 않습니다.
+서비스 모델 `models/model.joblib`은 저장소에 커밋되어 있어, 받으면 바로 실제 모델로 예측합니다(이 파일이 없으면 더미 예측기). 모델 팀이 새로 학습하면 `no_weather.joblib`과 `metadata.json` 두 파일을 `models/`에 넣고 아래를 실행한 뒤, 바뀐 `models/model.joblib`만 커밋합니다. 두 원본 파일은 커밋되지 않습니다.
 
 ```bash
 python ml/package_model.py models     # → models/model.joblib
