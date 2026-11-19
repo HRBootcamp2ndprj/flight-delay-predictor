@@ -2,6 +2,9 @@
 
 데이터 수집 → 전처리 → 학습 코드를 두는 곳.
 
+- `weather_download/`: IEM 공항 기상(METAR) 다운로드·검증
+- `data_pipeline/`: BTS + 기상 결합, 피처 생성, 학습셋(`processed_v3`) 생성 → [README](data_pipeline/README.md)
+
 산출물은 `models/delay.joblib`, `models/cancel.joblib` 두 개이며,
 **전처리를 포함한 sklearn Pipeline**이어야 합니다. 입력 컬럼 계약은
 [ADR-0001](../docs/adr/0001-model-artifact-includes-preprocessing.md)을 따릅니다.
