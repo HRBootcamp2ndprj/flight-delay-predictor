@@ -176,3 +176,15 @@ def test_prediction_unavailable_becomes_date_error(client, predictor):
     res = client.post("/api/predict", json=VALID)
     assert res.status_code == 400
     assert res.get_json() == {"errors": {"date": "이 날짜는 아직 예측할 수 없어요."}}
+
+
+def test_options_include_the_routes_each_airline_flies(client):
+    routes = client.get("/api/options").get_json()["routes"]
+    assert "LAX" in routes["AA"]["JFK"]
+    assert "JFK" not in routes["WN"]  # 사우스웨스트는 JFK 에 취항하지 않는다
+
+
+def test_route_the_airline_does_not_fly_is_rejected(client):
+    res = client.post("/api/predict", json={**VALID, "airline": "WN"})
+    assert res.status_code == 400
+    assert res.get_json()["errors"] == {"dest": "이 항공사는 이 노선을 운항하지 않아요."}

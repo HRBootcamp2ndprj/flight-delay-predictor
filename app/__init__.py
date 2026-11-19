@@ -25,7 +25,9 @@ def _load_options() -> dict:
         airlines = json.load(f)
     with open(DATA_DIR / "airports.json", encoding="utf-8") as f:
         airports = json.load(f)
-    return {"airlines": airlines, "airports": airports}
+    with open(DATA_DIR / "routes.json", encoding="utf-8") as f:
+        routes = json.load(f)  # 항공사 → 출발 → [도착]. 실제 운항하는 노선 (ml/build_options.py)
+    return {"airlines": airlines, "airports": airports, "routes": routes}
 
 
 def _date_range(predictor: Predictor, today: date) -> tuple[date, DataLimit | None]:
@@ -55,6 +57,8 @@ def _parse_request(payload: dict, options: dict, today: date, last_date: date,
         errors["dest"] = "지원하지 않는 도착 공항입니다."
     if "origin" not in errors and origin == dest:
         errors["dest"] = "출발 공항과 도착 공항이 같습니다."
+    elif not errors and dest not in options["routes"].get(airline, {}).get(origin, ()):
+        errors["dest"] = "이 항공사는 이 노선을 운항하지 않아요."
 
     flight_date = None
     try:

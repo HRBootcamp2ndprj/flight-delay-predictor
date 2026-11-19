@@ -52,11 +52,14 @@ $("theme-toggle").addEventListener("click", () => {
 // ───────── 콤보박스 (목록 드롭다운 + 검색): 항공사, 출발지, 도착지 ─────────
 
 class Combo {
-  constructor(root, items, emptyText) {
+  // allowed(): 지금 고를 수 있는 코드 Set (다른 칸에서 고른 값에 맞는 것). onPick(code): 사용자가 고른 뒤 호출
+  constructor(root, items, emptyText, { allowed = () => null, onPick = () => {} } = {}) {
     this.root = root;
     this.items = items;
     this.byCode = new Map(items.map((a) => [a.code, a]));
     this.emptyText = emptyText;
+    this.allowed = allowed;
+    this.onPick = onPick;
     this.hidden = root.querySelector('input[type="hidden"]');
     this.input = root.querySelector(".combo-input");
     this.list = root.querySelector(".combo-list");
@@ -75,7 +78,7 @@ class Combo {
     this.list.addEventListener("mousedown", (e) => {
       e.preventDefault(); // blur 방지
       const li = e.target.closest("li[data-code]");
-      if (li) { this.set(li.dataset.code); this.close(); }
+      if (li) { this.pick(li.dataset.code); this.close(); }
     });
   }
 
@@ -91,16 +94,23 @@ class Combo {
     this.input.value = this.label(code);
   }
 
+  pick(code) {
+    this.set(code);
+    this.onPick(code);
+  }
+
+  pool() {
+    const ok = this.allowed();
+    return ok ? this.items.filter((a) => ok.has(a.code)) : this.items;
+  }
+
   filter(q) {
     q = q.trim().toLowerCase();
-    if (!q || q === this.label(this.value).toLowerCase()) return this.items;
-    const starts = [], contains = [];
-    for (const a of this.items) {
-      const hay = [a.code, a.name, a.name_ko ?? ""].map((s) => s.toLowerCase());
-      if (hay[0].startsWith(q)) starts.push(a);
-      else if (hay.some((h) => h.includes(q))) contains.push(a);
-    }
-    return [...starts, ...contains];
+    const pool = this.pool();
+    if (!q || q === this.label(this.value).toLowerCase()) return pool;
+    // 다른 칸과 맞는 것 중에 없으면 전체에서 찾는다. 고르면 맞지 않게 된 칸을 비운다 (onPick)
+    const found = search(pool, q);
+    return found.length ? found : search(this.items, q);
   }
 
   open(q) {
@@ -152,7 +162,7 @@ class Combo {
     } else if (e.key === "Enter") {
       if (!this.list.hidden && this.matches[this.active]) {
         e.preventDefault();
-        this.set(this.matches[this.active].code);
+        this.pick(this.matches[this.active].code);
         this.close();
       }
     } else if (e.key === "Escape") {
@@ -171,12 +181,60 @@ class Combo {
     const exact = this.items.find((a) => a.code.toLowerCase() === q.toLowerCase());
     const matches = this.filter(q);
     const pick = exact || (matches.length === 1 ? matches[0] : null);
-    if (pick) this.set(pick.code);
+    if (pick) this.pick(pick.code);
     else this.hidden.value = q.toUpperCase(); // 서버가 "지원하지 않는 공항"으로 응답
   }
 }
 
+function search(items, q) {
+  const starts = [], contains = [];
+  for (const a of items) {
+    const hay = [a.code, a.name, a.name_ko ?? ""].map((s) => s.toLowerCase());
+    if (hay[0].startsWith(q)) starts.push(a);
+    else if (hay.some((h) => h.includes(q))) contains.push(a);
+  }
+  return [...starts, ...contains];
+}
+
 let airlineCombo, originCombo, destCombo;
+
+// ───────── 실제 운항 노선으로 서로 거르기 ─────────
+
+let ROUTES = {}; // 항공사 → 출발 → [도착] (서버 /api/options, ml/build_options.py 가 만든 실제 운항 노선)
+const FIELD_LABEL = { airline: "항공사", origin: "출발지", dest: "도착지" };
+const combos = () => ({ airline: airlineCombo, origin: originCombo, dest: destCombo });
+const known = (combo) => (combo.byCode.has(combo.value) ? combo.value : "");
+
+// field 칸에서 고를 수 있는 코드: 나머지 두 칸에서 고른 값과 함께 실제로 운항하는 노선이 있는 것
+function allowedFor(field) {
+  const picked = { airline: known(airlineCombo), origin: known(originCombo), dest: known(destCombo) };
+  const out = new Set();
+  for (const [airline, byOrigin] of Object.entries(ROUTES)) {
+    if (field !== "airline" && picked.airline && airline !== picked.airline) continue;
+    for (const [origin, dests] of Object.entries(byOrigin)) {
+      if (field !== "origin" && picked.origin && origin !== picked.origin) continue;
+      for (const dest of dests) {
+        if (field !== "dest" && picked.dest && dest !== picked.dest) continue;
+        out.add({ airline, origin, dest }[field]);
+      }
+    }
+  }
+  return out;
+}
+
+function showNote(field, text) {
+  form.querySelector(`.error[data-for="${field}"]`).textContent = text;
+}
+
+// changed 칸을 고른 뒤, 그 값과 맞지 않게 된 다른 칸은 비우고 이유를 알려 준다
+function dropUnreachable(changed) {
+  showNote(changed, "");
+  for (const [field, combo] of Object.entries(combos())) {
+    if (field === changed || !known(combo) || allowedFor(field).has(combo.value)) continue;
+    combo.set("");
+    showNote(field, `고른 ${FIELD_LABEL[changed]}로는 운항하지 않는 곳이라 ${FIELD_LABEL[field]}를 비웠어요.`);
+  }
+}
 
 // ───────── 폼 ─────────
 
@@ -206,6 +264,10 @@ function setDeparture(hhmm) {
 $("swap").addEventListener("click", () => {
   const o = originCombo.value, d = destCombo.value;
   originCombo.set(d); destCombo.set(o);
+  if (known(destCombo) && !allowedFor("dest").has(destCombo.value)) {
+    destCombo.set("");
+    showNote("dest", "반대 방향은 고른 항공사가 운항하지 않아 도착지를 비웠어요.");
+  }
 });
 
 async function postJSON(url, payload) {
@@ -422,10 +484,12 @@ async function init() {
   OPTIONS = await (await fetch("/api/options")).json();
   OPTIONS.airports.forEach((a) => { byCode[a.code] = a; });
 
-  const combo = (name, items, emptyText) => new Combo(form.querySelector(`[data-name="${name}"]`), items, emptyText);
-  airlineCombo = combo("airline", OPTIONS.airlines, "일치하는 항공사가 없어요");
-  originCombo = combo("origin", OPTIONS.airports, "일치하는 공항이 없어요");
-  destCombo = combo("dest", OPTIONS.airports, "일치하는 공항이 없어요");
+  ROUTES = OPTIONS.routes;
+  const combo = (name, items, emptyText) => new Combo(form.querySelector(`[data-name="${name}"]`), items, emptyText,
+    { allowed: () => allowedFor(name), onPick: () => dropUnreachable(name) });
+  airlineCombo = combo("airline", OPTIONS.airlines, "조건에 맞는 항공사가 없어요");
+  originCombo = combo("origin", OPTIONS.airports, "조건에 맞는 공항이 없어요");
+  destCombo = combo("dest", OPTIONS.airports, "조건에 맞는 공항이 없어요");
 
   const today = new Date();
   const { min, max, limit_note } = OPTIONS.dates;

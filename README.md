@@ -8,7 +8,7 @@ BTS 항공 운항 데이터로 미국 국내선의 **지연**(출발 15분 이�
 ```
 app/            Flask 서버 + 프론트 (static/index.html, app.js, style.css, video/)
   predictor.py  예측기. models/model.joblib 이 없으면 더미 예측기 사용
-  data/         드롭다운 목록 airlines.json·airports.json (ml/build_options.py 가 생성), 이름표 names.json
+  data/         드롭다운 목록 airlines.json·airports.json·routes.json (ml/build_options.py 가 생성), 이름표 names.json
 ml/             모델 담당 안내
   data_pipeline/  데이터 팀 파이프라인. service_features.py 가 서비스 피처를 만든다
   weather_download/  공항 기상 다운로드, station_map.csv (공항 시간대)
@@ -23,7 +23,7 @@ docs/design/    화면 스크린샷
 
 집계표는 새 BTS 달이 공개될 때마다 데이터 팀이 `preprocess_flights.py`로 갱신합니다. 갱신이 밀리면 예측 가능한 출발일이 줄어들고, 화면이 그 이유를 보여 줍니다.
 
-드롭다운의 항공사·공항은 집계표에서 최근 12개월 운항 기록이 있는 곳을 운항이 많은 순으로 담습니다. 집계표를 갱신한 뒤 아래를 실행해 목록도 갱신합니다. 한글 이름은 `app/data/names.json`(항공사 전부, 상위 공항 100곳)에서 붙이고, 나머지 공항은 영문 이름만 씁니다. 새 항공사가 생기면 스크립트가 이름표에 추가하라고 알려 줍니다.
+드롭다운의 항공사·공항은 집계표에서 최근 12개월 운항 기록이 있는 곳을 운항이 많은 순으로 담습니다. 세 칸은 실제 운항 노선(`routes.json`)으로 서로 걸러집니다. 예를 들어 항공사를 고르면 출발지에는 그 항공사가 출발하는 공항만, 도착지에는 그 노선만 보이고, 서버도 운항하지 않는 조합은 받지 않습니다. 집계표에 항공사×노선 표가 없어 노선은 기체 일정(`tail_sameday`)에서 만듭니다(1년 12회 이상 운항한 구간, 2025년 운항의 99.98%). 집계표를 갱신한 뒤 아래를 실행해 목록도 갱신합니다. 한글 이름은 `app/data/names.json`(항공사 전부, 상위 공항 100곳)에서 붙이고, 나머지 공항은 영문 이름만 씁니다. 새 항공사가 생기면 스크립트가 이름표에 추가하라고 알려 줍니다.
 
 ```bash
 python ml/build_options.py
@@ -42,7 +42,7 @@ pytest
 
 ## API
 
-- `GET /api/options` → `{ airlines: [{code, name, name_ko}], airports: [{code, name, name_ko}], dates: {min, max, limit_note} }`
+- `GET /api/options` → `{ airlines: [{code, name, name_ko?}], airports: [{code, name, name_ko?}], routes: {항공사: {출발: [도착]}}, dates: {min, max, limit_note} }`
   - `dates.max`는 예측 가능한 마지막 출발일. 집계표가 오래돼 365일보다 짧아지면 `limit_note`에 이유가 담긴다
 - `POST /api/predict/hourly` 같은 요청 본문 → `{ model_version, hours: [{hour, delay_probability, cancel_probability}] }` (06~22시, 예정 소요시간 유지)
 - `POST /api/predict` 요청 본문 `{ airline, origin, dest, date: "YYYY-MM-DD", dep_time: "HH:MM", arr_time: "HH:MM" }` (시각은 각 공항 현지 시각)
