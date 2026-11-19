@@ -5,3 +5,18 @@ __pycache__/
 # BTS 원본 데이터와 학습된 모델은 용량이 커서 커밋하지 않음
 data/raw/
 models/*.joblib
+
+# 데이터·산출물 (용량이 커서 커밋하지 않음 — 데이터 폴더는 AIRLINE_DATA_ROOT 로 지정)
+processed/
+processed_v2/
+processed_v3/
+weather/
+flight_expectation/
+asos_raw/
+taf_raw/
+*.parquet
+*.csv.gz
+*.zip
+*.ipynb_checkpoints/
+# 단, 서비스용 BTS 집계표는 커밋 (ml/data_pipeline/service_features.py 가 읽음)
+!data/aggregates/**/*.parquet
