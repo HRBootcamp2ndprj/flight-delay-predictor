@@ -122,6 +122,8 @@ class Combo {
     this.root.dataset.open = "";
     this.input.setAttribute("aria-expanded", "true");
     this.scrollActive();
+    // 폼이 첫 화면 아래쪽에 있어 목록이 화면 밖으로 펼쳐지면, 목록이 다 보이도록 페이지를 올린다
+    if (this.list.getBoundingClientRect().bottom > innerHeight) this.list.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
   close() {
@@ -504,5 +506,14 @@ async function init() {
 }
 
 if (!matchMedia("(prefers-reduced-motion: reduce)").matches) $("sky-video").play().catch(() => {});
+
+// 스크롤한 정도(첫 화면 높이의 80%까지를 0~1)를 CSS 에 넘겨 배경 덮개(.sky-veil)를 짙게 한다
+let scrollFrame = 0;
+addEventListener("scroll", () => {
+  cancelAnimationFrame(scrollFrame);
+  scrollFrame = requestAnimationFrame(() => {
+    document.documentElement.style.setProperty("--scrolled", Math.min(scrollY / (innerHeight * 0.8), 1).toFixed(3));
+  });
+}, { passive: true });
 
 init();
