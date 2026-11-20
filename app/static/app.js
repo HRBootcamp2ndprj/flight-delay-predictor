@@ -432,9 +432,8 @@ const toMinutes = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return
 const toHHMM = (min) => { const m = ((min % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; };
 
 // 출발 시각만 바꾸고 예정 소요시간은 유지한다 (서버의 시간대별 비교와 같은 규칙)
-function setDeparture(hhmm) {
-  if (arrTime.value && depTime.value) arrTime.value = toHHMM(toMinutes(arrTime.value) + toMinutes(hhmm) - toMinutes(depTime.value));
-  depTime.value = hhmm;
+function withDeparture(q, hhmm) {
+  return { ...q, dep_time: hhmm, arr_time: toHHMM(toMinutes(q.arr_time) + toMinutes(hhmm) - toMinutes(q.dep_time)) };
 }
 
 $("swap").addEventListener("click", () => {
@@ -531,8 +530,8 @@ function renderResult(q, single, hourly) {
 
   const selectedHour = Number(q.dep_time.split(":")[0]);
   if (hourly) {
-    renderHourlyChart($("chart-delay"), "delay", hourly.hours, selectedHour);
-    renderHourlyChart($("chart-cancel"), "cancel", hourly.hours, selectedHour);
+    renderHourlyChart($("chart-delay"), "delay", hourly.hours, selectedHour, q);
+    renderHourlyChart($("chart-cancel"), "cancel", hourly.hours, selectedHour, q);
     $("hourly-table").innerHTML = hourly.hours.map((h) => `
       <tr class="${h.hour === selectedHour ? "current" : ""}">
         <td>${String(h.hour).padStart(2, "0")}:00</td><td>${pct(h.delay_probability)}%</td><td>${pct(h.cancel_probability)}%</td>
@@ -549,7 +548,7 @@ function niceMax(v) {
   return 1;
 }
 
-function renderHourlyChart(el, kind, hours, selectedHour) {
+function renderHourlyChart(el, kind, hours, selectedHour, q) {
   const key = `${kind}_probability`;
   const W = 420, H = 180, padL = 34, padR = 6, padT = 22, padB = 22;
   const innerW = W - padL - padR, innerH = H - padT - padB;
@@ -608,10 +607,15 @@ function renderHourlyChart(el, kind, hours, selectedHour) {
     hit.addEventListener("focus", show);
     hit.addEventListener("mouseleave", hideTooltip);
     hit.addEventListener("blur", hideTooltip);
+    // 그 시각의 확률은 이미 받은 시간대별 결과에 있고, 출발 시각만 바뀐 요청의 시간대별 결과도 같다.
+    // 서버에 다시 묻지 않고 그 값으로 결과를 바꾼다. 폼은 차트를 만든 조회 기준으로 맞춘다 (그 사이 고친 칸이 있어도)
     const pick = () => {
       hideTooltip();
-      setDeparture(`${String(h.hour).padStart(2, "0")}:00`);
-      form.requestSubmit();
+      const picked = withDeparture(q, `${String(h.hour).padStart(2, "0")}:00`);
+      showErrors({});
+      fillForm(picked);
+      renderResult(picked, h, { hours });
+      remember(picked);
     };
     hit.addEventListener("click", pick);
     hit.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
